@@ -16,6 +16,6 @@ py -3.12 -m venv .venv
 ```powershell
 cd frontend
 npm install
-npm test -- --run
+npm test
 npm run dev
 ```

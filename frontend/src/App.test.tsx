@@ -11,4 +11,12 @@ describe("App", () => {
       screen.getByRole("heading", { name: /RTR4 学习系统/ }),
     ).toBeInTheDocument();
   });
+
+  it("renders independently from previous tests", () => {
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { name: /RTR4 学习系统/ }),
+    ).toBeInTheDocument();
+  });
 });
