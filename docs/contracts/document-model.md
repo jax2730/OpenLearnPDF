@@ -8,9 +8,10 @@ stage artifact and must never be rewritten during normalization.
 
 `BoundingBox` uses normalized, top-left coordinates `(x0, y0, x1, y1)`.
 The page's top-left is `(0, 0)` and bottom-right is `(1, 1)`. Coordinates are
-inclusive, so zero and one are valid. Rectangles satisfy `x0 <= x1` and
-`y0 <= y1`. Parser-specific pixel or PDF coordinates remain in the raw
-artifact; normalization is the only place that converts them.
+inclusive, so zero and one are valid. Rectangles must have positive area and
+satisfy `x0 < x1` and `y0 < y1`. Parser-specific pixel or PDF coordinates
+remain in the raw artifact; normalization is the only place that converts
+them.
 
 ## Stable block IDs
 
@@ -50,10 +51,11 @@ routing, not a calibrated probability unless the producing parser documents
 that guarantee. Parser name, parser version, and optional model identify the
 producer.
 
-Normalized blocks remain auditable through `raw_artifact`, the immutable raw
-output path, plus optional `raw_block_id`, the producer's record identifier.
+Real parser-derived blocks must set `raw_artifact` to the immutable raw output
+path and retain `raw_block_id` when the producer provides a record identifier.
 Normalization may create corrected text, LaTeX, assets, and relations, but it
-must retain this reference and never edit the referenced raw payload.
+must never edit the referenced raw payload. Fixtures and manually authored
+blocks may explicitly omit both fields because no raw parser artifact exists.
 
 ## Container manifests
 

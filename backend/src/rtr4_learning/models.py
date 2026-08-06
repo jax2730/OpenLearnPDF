@@ -1,9 +1,16 @@
 """Canonical document contracts shared by pipeline stages."""
 
 from enum import Enum
-from typing import Annotated, Any
+from typing import Annotated
 
-from pydantic import BaseModel, Field, PositiveInt, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    PositiveInt,
+    model_validator,
+)
 
 StableBlockId = Annotated[
     str,
@@ -11,6 +18,14 @@ StableBlockId = Annotated[
 ]
 Confidence = Annotated[float, Field(ge=0.0, le=1.0)]
 NormalizedCoordinate = Annotated[float, Field(ge=0.0, le=1.0)]
+
+
+class ContractModel(BaseModel):
+    model_config = ConfigDict(
+        allow_inf_nan=False,
+        extra="forbid",
+        validate_assignment=True,
+    )
 
 
 class BlockType(str, Enum):
@@ -26,7 +41,7 @@ class BlockType(str, Enum):
     PAGE_FOOTER = "page_footer"
 
 
-class BoundingBox(BaseModel):
+class BoundingBox(ContractModel):
     """Normalized top-left rectangle, including both zero and one."""
 
     x0: NormalizedCoordinate
@@ -36,17 +51,17 @@ class BoundingBox(BaseModel):
 
     @model_validator(mode="after")
     def validate_rectangle_order(self) -> "BoundingBox":
-        if self.x0 > self.x1 or self.y0 > self.y1:
-            raise ValueError("bbox must satisfy x0 <= x1 and y0 <= y1")
+        if self.x0 >= self.x1 or self.y0 >= self.y1:
+            raise ValueError("bbox must satisfy x0 < x1 and y0 < y1")
         return self
 
 
-class Relation(BaseModel):
+class Relation(ContractModel):
     type: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$")]
     target: StableBlockId
 
 
-class BlockSource(BaseModel):
+class BlockSource(ContractModel):
     """Parser provenance for one normalized block."""
 
     parser: Annotated[str, Field(min_length=1)]
@@ -57,7 +72,7 @@ class BlockSource(BaseModel):
     raw_block_id: str | int | None = None
 
 
-class Block(BaseModel):
+class Block(ContractModel):
     id: StableBlockId
     type: BlockType
     page: PositiveInt
@@ -71,6 +86,13 @@ class Block(BaseModel):
     source: BlockSource
 
     @model_validator(mode="after")
+    def validate_id_page(self) -> "Block":
+        id_page = int(self.id.split("-", maxsplit=1)[0][1:])
+        if id_page != self.page:
+            raise ValueError("block id page must match block page")
+        return self
+
+    @model_validator(mode="after")
     def validate_formula_representation(self) -> "Block":
         if self.type is BlockType.FORMULA and not (
             self.latex and self.latex.strip() or self.asset_path and self.asset_path.strip()
@@ -79,14 +101,20 @@ class Block(BaseModel):
         return self
 
 
-class PageDocument(BaseModel):
+class PageDocument(ContractModel):
     page: PositiveInt
     blocks: list[Block] = Field(default_factory=list)
     width_points: Annotated[float, Field(gt=0)] | None = None
     height_points: Annotated[float, Field(gt=0)] | None = None
 
+    @model_validator(mode="after")
+    def validate_block_pages(self) -> "PageDocument":
+        if any(block.page != self.page for block in self.blocks):
+            raise ValueError("all blocks must belong to the document page")
+        return self
 
-class ChapterManifest(BaseModel):
+
+class ChapterManifest(ContractModel):
     id: Annotated[str, Field(min_length=1)]
     title: str
     start_page: PositiveInt
@@ -100,7 +128,7 @@ class ChapterManifest(BaseModel):
         return self
 
 
-class BookManifest(BaseModel):
+class BookManifest(ContractModel):
     id: Annotated[str, Field(min_length=1)]
     title: str
     source_path: Annotated[str, Field(min_length=1)]
@@ -109,9 +137,9 @@ class BookManifest(BaseModel):
     chapters: list[ChapterManifest] = Field(default_factory=list)
 
 
-class StageManifest(BaseModel):
+class StageManifest(ContractModel):
     stage: Annotated[str, Field(min_length=1)]
     version: Annotated[str, Field(min_length=1)]
     fingerprint: Annotated[str, Field(min_length=1)]
-    inputs: dict[str, Any] = Field(default_factory=dict)
+    inputs: dict[str, JsonValue] = Field(default_factory=dict)
     outputs: list[str] = Field(default_factory=list)

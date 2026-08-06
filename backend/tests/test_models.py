@@ -1,7 +1,15 @@
 import pytest
 from pydantic import ValidationError
 
-from rtr4_learning.models import Block, BlockSource, BlockType, BoundingBox, Relation
+from rtr4_learning.models import (
+    Block,
+    BlockSource,
+    BlockType,
+    BoundingBox,
+    PageDocument,
+    Relation,
+    StageManifest,
+)
 
 
 def formula_block(**overrides: object) -> Block:
@@ -50,6 +58,19 @@ def test_bbox_rejects_reversed_rectangle(coordinates: dict[str, float]) -> None:
         BoundingBox(**coordinates)
 
 
+@pytest.mark.parametrize(
+    "coordinates",
+    [
+        {"x0": 0.2, "y0": 0.1, "x1": 0.2, "y1": 0.9},
+        {"x0": 0.1, "y0": 0.2, "x1": 0.9, "y1": 0.2},
+        {"x0": 0.2, "y0": 0.2, "x1": 0.2, "y1": 0.2},
+    ],
+)
+def test_bbox_rejects_zero_area_rectangle(coordinates: dict[str, float]) -> None:
+    with pytest.raises(ValidationError):
+        BoundingBox(**coordinates)
+
+
 def test_formula_requires_latex_or_asset() -> None:
     with pytest.raises(ValidationError):
         formula_block(latex=None, asset_path=None)
@@ -74,7 +95,55 @@ def test_page_must_be_positive(page: int) -> None:
         formula_block(page=page)
 
 
+def test_block_id_page_must_match_block_page() -> None:
+    with pytest.raises(ValidationError):
+        formula_block(id="p104-equation-5.1")
+
+
+def test_page_document_rejects_blocks_from_another_page() -> None:
+    with pytest.raises(ValidationError):
+        PageDocument(page=106, blocks=[formula_block()])
+
+
 @pytest.mark.parametrize("confidence", [-0.01, 1.01])
 def test_confidence_must_be_between_zero_and_one(confidence: float) -> None:
     with pytest.raises(ValidationError):
         BlockSource(parser="fixture", version="1", confidence=confidence)
+
+
+def test_contract_rejects_unknown_fields() -> None:
+    with pytest.raises(ValidationError):
+        BoundingBox(x0=0, y0=0, x1=1, y1=1, coordinate_system="bottom-left")
+
+
+def test_contract_validates_assignment() -> None:
+    source = BlockSource(parser="fixture", version="1", confidence=0.9)
+
+    with pytest.raises(ValidationError):
+        source.confidence = 1.1
+
+
+def test_stage_inputs_nested_json_round_trips() -> None:
+    manifest = StageManifest(
+        stage="normalize",
+        version="1",
+        fingerprint="abc123",
+        inputs={
+            "pages": [104, 105],
+            "config": {"enabled": True, "threshold": 0.9},
+            "label": None,
+        },
+    )
+
+    assert StageManifest.model_validate_json(manifest.model_dump_json()) == manifest
+
+
+@pytest.mark.parametrize("unsafe_value", [object(), float("nan"), float("inf"), -float("inf")])
+def test_stage_inputs_reject_non_json_values(unsafe_value: object) -> None:
+    with pytest.raises(ValidationError):
+        StageManifest(
+            stage="normalize",
+            version="1",
+            fingerprint="abc123",
+            inputs={"nested": {"unsafe": unsafe_value}},
+        )
