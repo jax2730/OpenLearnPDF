@@ -11,6 +11,7 @@ from pydantic import (
     ConfigDict,
     Field,
     JsonValue,
+    NonNegativeInt,
     PositiveInt,
     field_serializer,
     field_validator,
@@ -198,6 +199,7 @@ class StageManifest(ContractModel):
     fingerprint: Annotated[str, Field(min_length=1)]
     inputs: Mapping[str, JsonValue] = Field(default_factory=dict)
     outputs: tuple[str, ...] = Field(default_factory=tuple)
+    artifacts: tuple["StageArtifact", ...] = Field(default_factory=tuple)
 
     @field_validator("inputs")
     @classmethod
@@ -213,3 +215,25 @@ class StageManifest(ContractModel):
         self, value: Mapping[str, ImmutableJson]
     ) -> dict[str, JsonValue]:
         return {key: _thaw_json(item) for key, item in value.items()}
+
+
+class StageArtifact(ContractModel):
+    path: Annotated[str, Field(min_length=1)]
+    size: NonNegativeInt
+    sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    pixel_width: PositiveInt | None = None
+    pixel_height: PositiveInt | None = None
+
+    @field_validator("path")
+    @classmethod
+    def validate_relative_artifact_path(cls, value: str) -> str:
+        path = Path(value)
+        if path.is_absolute() or ".." in path.parts or "\\" in value:
+            raise ValueError("artifact path must be a safe POSIX-style relative path")
+        return value
+
+    @model_validator(mode="after")
+    def validate_pixel_dimensions(self) -> "StageArtifact":
+        if (self.pixel_width is None) != (self.pixel_height is None):
+            raise ValueError("artifact pixel dimensions must be provided together")
+        return self
