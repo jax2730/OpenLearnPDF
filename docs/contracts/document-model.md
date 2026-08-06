@@ -4,6 +4,10 @@ Pipeline stages exchange Pydantic models from `rtr4_learning.models`. These
 normalized records are derived data. A parser's raw output is an immutable
 stage artifact and must never be rewritten during normalization.
 
+Canonical records are immutable after validation, including their structural
+collections. To make a change, construct and validate a new record rather than
+mutating an existing object in place.
+
 ## Coordinates
 
 `BoundingBox` uses normalized, top-left coordinates `(x0, y0, x1, y1)`.

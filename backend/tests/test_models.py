@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -116,11 +118,42 @@ def test_contract_rejects_unknown_fields() -> None:
         BoundingBox(x0=0, y0=0, x1=1, y1=1, coordinate_system="bottom-left")
 
 
-def test_contract_validates_assignment() -> None:
-    source = BlockSource(parser="fixture", version="1", confidence=0.9)
+def test_invalid_bbox_assignment_preserves_original_state() -> None:
+    bbox = BoundingBox(x0=0.1, y0=0.2, x1=0.9, y1=0.8)
+    original = bbox.model_copy(deep=True)
 
     with pytest.raises(ValidationError):
-        source.confidence = 1.1
+        bbox.x1 = 0.0
+
+    assert bbox == original
+
+
+def test_block_page_assignment_preserves_original_state() -> None:
+    block = formula_block()
+    original = block.model_copy(deep=True)
+
+    with pytest.raises(ValidationError):
+        block.page = 104
+
+    assert block == original
+
+
+def test_structural_collections_cannot_be_modified_in_place() -> None:
+    block = formula_block()
+    page = PageDocument(page=105, blocks=[block])
+
+    with pytest.raises(AttributeError):
+        block.relations.append(Relation(type="refers_to", target="p105-figure-1"))
+    with pytest.raises(AttributeError):
+        page.blocks.append(block)
+
+
+def test_page_document_tuple_fields_round_trip_as_json_arrays() -> None:
+    page = PageDocument(page=105, blocks=[formula_block()])
+    payload = page.model_dump_json()
+
+    assert isinstance(json.loads(payload)["blocks"], list)
+    assert PageDocument.model_validate_json(payload) == page
 
 
 def test_stage_inputs_nested_json_round_trips() -> None:
@@ -133,8 +166,10 @@ def test_stage_inputs_nested_json_round_trips() -> None:
             "config": {"enabled": True, "threshold": 0.9},
             "label": None,
         },
+        outputs=["pages/105.json"],
     )
 
+    assert isinstance(json.loads(manifest.model_dump_json())["outputs"], list)
     assert StageManifest.model_validate_json(manifest.model_dump_json()) == manifest
 
 

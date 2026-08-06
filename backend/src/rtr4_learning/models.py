@@ -24,7 +24,7 @@ class ContractModel(BaseModel):
     model_config = ConfigDict(
         allow_inf_nan=False,
         extra="forbid",
-        validate_assignment=True,
+        frozen=True,
     )
 
 
@@ -82,7 +82,7 @@ class Block(ContractModel):
     html: str | None = None
     number: str | None = None
     asset_path: str | None = None
-    relations: list[Relation] = Field(default_factory=list)
+    relations: tuple[Relation, ...] = Field(default_factory=tuple)
     source: BlockSource
 
     @model_validator(mode="after")
@@ -103,7 +103,7 @@ class Block(ContractModel):
 
 class PageDocument(ContractModel):
     page: PositiveInt
-    blocks: list[Block] = Field(default_factory=list)
+    blocks: tuple[Block, ...] = Field(default_factory=tuple)
     width_points: Annotated[float, Field(gt=0)] | None = None
     height_points: Annotated[float, Field(gt=0)] | None = None
 
@@ -119,7 +119,7 @@ class ChapterManifest(ContractModel):
     title: str
     start_page: PositiveInt
     end_page: PositiveInt
-    pages: list[str] = Field(default_factory=list)
+    pages: tuple[str, ...] = Field(default_factory=tuple)
 
     @model_validator(mode="after")
     def validate_page_range(self) -> "ChapterManifest":
@@ -134,7 +134,7 @@ class BookManifest(ContractModel):
     source_path: Annotated[str, Field(min_length=1)]
     source_sha256: Annotated[str, Field(min_length=1)]
     page_count: PositiveInt
-    chapters: list[ChapterManifest] = Field(default_factory=list)
+    chapters: tuple[ChapterManifest, ...] = Field(default_factory=tuple)
 
 
 class StageManifest(ContractModel):
@@ -142,4 +142,4 @@ class StageManifest(ContractModel):
     version: Annotated[str, Field(min_length=1)]
     fingerprint: Annotated[str, Field(min_length=1)]
     inputs: dict[str, JsonValue] = Field(default_factory=dict)
-    outputs: list[str] = Field(default_factory=list)
+    outputs: tuple[str, ...] = Field(default_factory=tuple)
