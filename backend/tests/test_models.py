@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -7,11 +8,54 @@ from rtr4_learning.models import (
     Block,
     BlockSource,
     BlockType,
+    BookManifest,
     BoundingBox,
+    ChapterManifest,
     PageDocument,
     Relation,
     StageManifest,
 )
+
+
+def valid_book_manifest(**overrides: object) -> BookManifest:
+    values: dict[str, object] = {
+        "id": "rtr4-cn",
+        "title": "Real-Time Rendering 4th Edition",
+        "source_path": str(Path(__file__).resolve()),
+        "source_sha256": "a" * 64,
+        "page_count": 154,
+        "chapters": [
+            ChapterManifest(
+                id="5",
+                title="5",
+                start_page=104,
+                end_page=154,
+            )
+        ],
+    }
+    values.update(overrides)
+    return BookManifest(**values)
+
+
+@pytest.mark.parametrize("field", ["id", "title"])
+@pytest.mark.parametrize("value", ["", "   "])
+def test_book_identity_fields_reject_blank_values(field: str, value: str) -> None:
+    with pytest.raises(ValidationError):
+        valid_book_manifest(**{field: value})
+
+
+def test_book_source_path_must_be_absolute() -> None:
+    with pytest.raises(ValidationError):
+        valid_book_manifest(source_path="books/rtr4.pdf")
+
+
+@pytest.mark.parametrize(
+    "source_sha256",
+    ["a" * 63, "a" * 65, "G" * 64, "A" * 64],
+)
+def test_book_source_sha256_must_be_lowercase_hex(source_sha256: str) -> None:
+    with pytest.raises(ValidationError):
+        valid_book_manifest(source_sha256=source_sha256)
 
 
 def formula_block(**overrides: object) -> Block:

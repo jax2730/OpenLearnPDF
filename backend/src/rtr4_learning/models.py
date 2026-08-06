@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from enum import Enum
+from pathlib import Path
 from types import MappingProxyType
 from typing import Annotated, TypeAlias
 
@@ -155,11 +156,26 @@ class ChapterManifest(ContractModel):
 
 class BookManifest(ContractModel):
     id: Annotated[str, Field(min_length=1)]
-    title: str
+    title: Annotated[str, Field(min_length=1)]
     source_path: Annotated[str, Field(min_length=1)]
-    source_sha256: Annotated[str, Field(min_length=1)]
+    source_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     page_count: PositiveInt
     chapters: tuple[ChapterManifest, ...] = Field(default_factory=tuple)
+
+    @field_validator("id", "title")
+    @classmethod
+    def strip_non_blank_identity(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("book identity fields must not be blank")
+        return value
+
+    @field_validator("source_path")
+    @classmethod
+    def validate_absolute_source_path(cls, value: str) -> str:
+        if not Path(value).is_absolute():
+            raise ValueError("source_path must be absolute")
+        return value
 
 
 class StageManifest(ContractModel):

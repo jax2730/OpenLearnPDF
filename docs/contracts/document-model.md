@@ -65,6 +65,8 @@ blocks may explicitly omit both fields because no raw parser artifact exists.
 
 `PageDocument` groups canonical blocks by positive PDF page number.
 `ChapterManifest` records an inclusive page range. `BookManifest` binds
-chapters to the canonical source path and SHA-256 identity. `StageManifest`
+chapters to an absolute canonical source path and a 64-character lowercase
+SHA-256 identity. Book IDs and titles are stripped and must remain non-empty.
+`StageManifest`
 records a stage version, deterministic fingerprint, inputs, and output
 artifacts so cached derived data can be reproduced and invalidated safely.
