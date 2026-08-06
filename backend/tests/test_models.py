@@ -58,6 +58,23 @@ def test_book_source_sha256_must_be_lowercase_hex(source_sha256: str) -> None:
         valid_book_manifest(source_sha256=source_sha256)
 
 
+def test_book_chapter_must_not_exceed_page_count() -> None:
+    chapter = ChapterManifest(id="5", title="5", start_page=104, end_page=154)
+
+    with pytest.raises(ValidationError, match="page_count"):
+        valid_book_manifest(page_count=153, chapters=[chapter])
+
+
+def test_book_chapter_ids_must_be_unique() -> None:
+    chapters = [
+        ChapterManifest(id="5", title="5", start_page=104, end_page=120),
+        ChapterManifest(id="5", title="Duplicate", start_page=121, end_page=154),
+    ]
+
+    with pytest.raises(ValidationError, match="chapter IDs"):
+        valid_book_manifest(chapters=chapters)
+
+
 def formula_block(**overrides: object) -> Block:
     values: dict[str, object] = {
         "id": "p105-equation-5.1",
@@ -260,7 +277,9 @@ def test_stage_inputs_nested_mapping_is_immutable() -> None:
     assert manifest.model_dump_json() == original
 
 
-@pytest.mark.parametrize("unsafe_value", [object(), float("nan"), float("inf"), -float("inf")])
+@pytest.mark.parametrize(
+    "unsafe_value", [object(), float("nan"), float("inf"), -float("inf")]
+)
 def test_stage_inputs_reject_non_json_values(unsafe_value: object) -> None:
     with pytest.raises(ValidationError):
         StageManifest(

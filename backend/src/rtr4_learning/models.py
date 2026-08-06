@@ -31,7 +31,9 @@ ImmutableJson: TypeAlias = (
 
 def _freeze_json(value: JsonValue) -> ImmutableJson:
     if isinstance(value, dict):
-        return MappingProxyType({key: _freeze_json(item) for key, item in value.items()})
+        return MappingProxyType(
+            {key: _freeze_json(item) for key, item in value.items()}
+        )
     if isinstance(value, list):
         return tuple(_freeze_json(item) for item in value)
     return value
@@ -121,7 +123,10 @@ class Block(ContractModel):
     @model_validator(mode="after")
     def validate_formula_representation(self) -> "Block":
         if self.type is BlockType.FORMULA and not (
-            self.latex and self.latex.strip() or self.asset_path and self.asset_path.strip()
+            self.latex
+            and self.latex.strip()
+            or self.asset_path
+            and self.asset_path.strip()
         ):
             raise ValueError("formula block requires latex or asset_path")
         return self
@@ -176,6 +181,15 @@ class BookManifest(ContractModel):
         if not Path(value).is_absolute():
             raise ValueError("source_path must be absolute")
         return value
+
+    @model_validator(mode="after")
+    def validate_chapters(self) -> "BookManifest":
+        if any(chapter.end_page > self.page_count for chapter in self.chapters):
+            raise ValueError("chapter end_page must be <= book page_count")
+        chapter_ids = [chapter.id for chapter in self.chapters]
+        if len(chapter_ids) != len(set(chapter_ids)):
+            raise ValueError("book chapter IDs must be unique")
+        return self
 
 
 class StageManifest(ContractModel):

@@ -1,6 +1,7 @@
 """Command-line entry points for local pipeline stages."""
 
 import argparse
+import logging
 from collections.abc import Sequence
 
 from rtr4_learning.stages.register import register_book
@@ -21,6 +22,7 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
+    logging.getLogger("pypdf").setLevel(logging.CRITICAL)
     try:
         if args.command == "register":
             register_book(
