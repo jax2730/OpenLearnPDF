@@ -3,8 +3,10 @@
 import argparse
 import logging
 from collections.abc import Sequence
+from pathlib import Path
 
 from rtr4_learning.stages.register import register_book
+from rtr4_learning.stages.render import parse_page_selection, render_pages
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -16,6 +18,11 @@ def _parser() -> argparse.ArgumentParser:
     register.add_argument("--chapter", required=True)
     register.add_argument("--data-root", required=True)
     register.add_argument("--title")
+    render = commands.add_parser("render", help="render cited PDF pages")
+    render.add_argument("--book-id", required=True)
+    render.add_argument("--pages", required=True)
+    render.add_argument("--scale", required=True, type=float)
+    render.add_argument("--data-root", default=str(Path.cwd() / "data"))
     return parser
 
 
@@ -32,6 +39,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 data_root=args.data_root,
                 title=args.title,
             )
+        elif args.command == "render":
+            result = render_pages(
+                book_id=args.book_id,
+                pages=parse_page_selection(args.pages),
+                scale=args.scale,
+                data_root=args.data_root,
+            )
+            status = "reused" if result.reused else "rendered"
+            print(f"{status} {result.fingerprint} {result.output_dir}")
     except (OSError, ValueError) as error:
         parser.error(str(error))
     return 0

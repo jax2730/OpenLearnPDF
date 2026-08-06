@@ -78,3 +78,14 @@ def book_artifact_dir(data_root: Path | str, book_id: str) -> Path:
 
 def book_manifest_path(data_root: Path | str, book_id: str) -> Path:
     return book_artifact_dir(data_root, book_id) / "book.json"
+
+
+def book_render_dir(data_root: Path | str, book_id: str) -> Path:
+    artifact_dir = book_artifact_dir(data_root, book_id)
+    render_dir = artifact_dir / "renders"
+    if _is_link_or_reparse_point(render_dir):
+        raise ValueError(
+            f"book render path contains a symlink, junction or reparse point: {render_dir}"
+        )
+    _ensure_contained(Path(data_root).resolve(), render_dir)
+    return render_dir
