@@ -1,5 +1,6 @@
 import hashlib
 import json
+import multiprocessing
 import os
 import re
 import subprocess
@@ -14,8 +15,8 @@ import pytest
 from pypdf import PdfWriter
 
 import rtr4_learning.stages.register as register_module
-from rtr4_learning.paths import book_manifest_path, validate_book_id
-from rtr4_learning.stages.register import register_book
+from rtr4_learning.paths import _comparison_path, book_manifest_path, validate_book_id
+from rtr4_learning.stages.register import _book_lock, _stat_signature, register_book
 
 
 def create_pdf(path: Path, page_count: int = 154) -> None:
@@ -24,6 +25,22 @@ def create_pdf(path: Path, page_count: int = 154) -> None:
         writer.add_blank_page(width=612, height=792)
     with path.open("wb") as output:
         writer.write(output)
+
+
+def register_in_child(pdf_path: str, data_root: str) -> None:
+    register_book(
+        book_id="rtr4-cn",
+        pdf_path=pdf_path,
+        chapter="5:104-154",
+        data_root=data_root,
+    )
+
+
+def hold_book_lock_in_child(data_root: str, ready: object) -> None:
+    manifest_path = book_manifest_path(data_root, "rtr4-cn")
+    with _book_lock(manifest_path):
+        ready.set()  # type: ignore[attr-defined]
+        time.sleep(60)
 
 
 def test_register_book_writes_deterministic_manifest_without_copying_pdf(
@@ -189,7 +206,7 @@ def test_concurrent_identical_registration_is_serialized_and_idempotent(
 
     assert len(set(payloads)) == 1
     assert max_active_replaces == 1
-    assert not (data_root / "books" / ".rtr4-cn.register.lock").exists()
+    assert (data_root / "books" / ".rtr4-cn.register.lock").is_file()
 
 
 def test_register_book_rejects_existing_manifest_conflict(tmp_path: Path) -> None:
@@ -237,20 +254,47 @@ def test_register_book_rejects_existing_chapter_conflict(tmp_path: Path) -> None
         )
 
 
-def test_register_book_recovers_conservatively_stale_lock(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_multiprocess_identical_registration_is_idempotent(tmp_path: Path) -> None:
     pdf_path = tmp_path / "source.pdf"
     data_root = tmp_path / "data"
     create_pdf(pdf_path)
-    manifest_path = book_manifest_path(data_root, "rtr4-cn")
-    manifest_path.parent.mkdir(parents=True)
-    lock_path = manifest_path.parent.parent / ".rtr4-cn.register.lock"
-    lock_path.write_text(
-        json.dumps({"pid": 2_147_483_647, "created_at": 0}), encoding="utf-8"
-    )
-    monkeypatch.setattr(register_module, "_LOCK_STALE_SECONDS", 0.0)
+    context = multiprocessing.get_context("spawn")
+    processes = [
+        context.Process(
+            target=register_in_child,
+            args=(str(pdf_path), str(data_root)),
+        )
+        for _ in range(4)
+    ]
 
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(timeout=20)
+
+    assert [process.exitcode for process in processes] == [0] * len(processes)
+    manifest_path = book_manifest_path(data_root, "rtr4-cn")
+    first_bytes = manifest_path.read_bytes()
+    assert all(manifest_path.read_bytes() == first_bytes for _ in range(4))
+
+
+def test_terminated_lock_holder_releases_os_lock(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "source.pdf"
+    data_root = tmp_path / "data"
+    create_pdf(pdf_path)
+    context = multiprocessing.get_context("spawn")
+    ready = context.Event()
+    holder = context.Process(
+        target=hold_book_lock_in_child,
+        args=(str(data_root), ready),
+    )
+    holder.start()
+    assert ready.wait(timeout=10)
+    holder.terminate()
+    holder.join(timeout=10)
+    assert holder.exitcode is not None
+
+    started_at = time.monotonic()
     register_book(
         book_id="rtr4-cn",
         pdf_path=pdf_path,
@@ -258,25 +302,22 @@ def test_register_book_recovers_conservatively_stale_lock(
         data_root=data_root,
     )
 
-    assert manifest_path.is_file()
-    assert not lock_path.exists()
+    assert time.monotonic() - started_at < 2.0
 
 
-def test_register_book_does_not_remove_lock_owned_by_live_process(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_book_artifacts_reject_symlink_escape(tmp_path: Path) -> None:
     pdf_path = tmp_path / "source.pdf"
     data_root = tmp_path / "data"
+    outside = tmp_path / "outside"
     create_pdf(pdf_path)
-    manifest_path = book_manifest_path(data_root, "rtr4-cn")
-    lock_path = manifest_path.parent.parent / ".rtr4-cn.register.lock"
-    lock_path.parent.mkdir(parents=True)
-    lock_payload = json.dumps({"pid": os.getpid(), "created_at": 0})
-    lock_path.write_text(lock_payload, encoding="utf-8")
-    monkeypatch.setattr(register_module, "_LOCK_STALE_SECONDS", 0.0)
-    monkeypatch.setattr(register_module, "_LOCK_TIMEOUT_SECONDS", 0.05)
+    data_root.mkdir()
+    outside.mkdir()
+    try:
+        os.symlink(outside, data_root / "books", target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"directory symlink unavailable: {error}")
 
-    with pytest.raises(ValueError, match="timed out"):
+    with pytest.raises(ValueError, match="symlink|junction|reparse|outside"):
         register_book(
             book_id="rtr4-cn",
             pdf_path=pdf_path,
@@ -284,7 +325,61 @@ def test_register_book_does_not_remove_lock_owned_by_live_process(
             data_root=data_root,
         )
 
-    assert lock_path.read_text(encoding="utf-8") == lock_payload
+    assert not (outside / "rtr4-cn" / "book.json").exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows junction test")
+def test_book_artifacts_reject_windows_junction_escape(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "source.pdf"
+    data_root = tmp_path / "data"
+    outside = tmp_path / "outside"
+    create_pdf(pdf_path)
+    data_root.mkdir()
+    outside.mkdir()
+    books_path = data_root / "books"
+    result = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(books_path), str(outside)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        pytest.skip(f"junction unavailable: {result.stderr or result.stdout}")
+
+    with pytest.raises(ValueError, match="symlink|junction|reparse|outside"):
+        register_book(
+            book_id="rtr4-cn",
+            pdf_path=pdf_path,
+            chapter="5:104-154",
+            data_root=data_root,
+        )
+
+    assert not (outside / "rtr4-cn" / "book.json").exists()
+
+
+def test_source_signature_includes_ctime(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "source.pdf"
+    create_pdf(pdf_path, page_count=1)
+    metadata = pdf_path.stat()
+
+    signature = _stat_signature(metadata)
+
+    assert signature[-1] == metadata.st_ctime_ns
+    assert len(signature) == 5
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows extended path test")
+@pytest.mark.parametrize(
+    ("extended", "expected"),
+    [
+        (r"\\?\C:\data\books", r"c:\data\books"),
+        (r"\\?\UNC\server\share\books", r"\\server\share\books"),
+    ],
+)
+def test_comparison_path_normalizes_windows_extended_prefix(
+    extended: str, expected: str
+) -> None:
+    assert _comparison_path(Path(extended)) == expected
 
 
 @pytest.mark.parametrize(
