@@ -1,7 +1,9 @@
 """Canonical document contracts shared by pipeline stages."""
 
+from collections.abc import Mapping
 from enum import Enum
-from typing import Annotated
+from types import MappingProxyType
+from typing import Annotated, TypeAlias
 
 from pydantic import (
     BaseModel,
@@ -9,6 +11,8 @@ from pydantic import (
     Field,
     JsonValue,
     PositiveInt,
+    field_serializer,
+    field_validator,
     model_validator,
 )
 
@@ -18,6 +22,26 @@ StableBlockId = Annotated[
 ]
 Confidence = Annotated[float, Field(ge=0.0, le=1.0)]
 NormalizedCoordinate = Annotated[float, Field(ge=0.0, le=1.0)]
+JsonScalar: TypeAlias = str | bool | int | float | None
+ImmutableJson: TypeAlias = (
+    JsonScalar | tuple["ImmutableJson", ...] | Mapping[str, "ImmutableJson"]
+)
+
+
+def _freeze_json(value: JsonValue) -> ImmutableJson:
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze_json(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze_json(item) for item in value)
+    return value
+
+
+def _thaw_json(value: ImmutableJson) -> JsonValue:
+    if isinstance(value, Mapping):
+        return {key: _thaw_json(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw_json(item) for item in value]
+    return value
 
 
 class ContractModel(BaseModel):
@@ -25,6 +49,7 @@ class ContractModel(BaseModel):
         allow_inf_nan=False,
         extra="forbid",
         frozen=True,
+        validate_default=True,
     )
 
 
@@ -141,5 +166,20 @@ class StageManifest(ContractModel):
     stage: Annotated[str, Field(min_length=1)]
     version: Annotated[str, Field(min_length=1)]
     fingerprint: Annotated[str, Field(min_length=1)]
-    inputs: dict[str, JsonValue] = Field(default_factory=dict)
+    inputs: Mapping[str, JsonValue] = Field(default_factory=dict)
     outputs: tuple[str, ...] = Field(default_factory=tuple)
+
+    @field_validator("inputs")
+    @classmethod
+    def freeze_inputs(
+        cls, value: Mapping[str, JsonValue]
+    ) -> Mapping[str, ImmutableJson]:
+        return MappingProxyType(
+            {key: _freeze_json(item) for key, item in value.items()}
+        )
+
+    @field_serializer("inputs")
+    def serialize_inputs(
+        self, value: Mapping[str, ImmutableJson]
+    ) -> dict[str, JsonValue]:
+        return {key: _thaw_json(item) for key, item in value.items()}

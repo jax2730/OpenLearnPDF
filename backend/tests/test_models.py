@@ -169,8 +169,51 @@ def test_stage_inputs_nested_json_round_trips() -> None:
         outputs=["pages/105.json"],
     )
 
+    dumped = manifest.model_dump(mode="json")
+    assert isinstance(dumped["inputs"], dict)
+    assert isinstance(dumped["inputs"]["pages"], list)
+    assert isinstance(dumped["outputs"], list)
     assert isinstance(json.loads(manifest.model_dump_json())["outputs"], list)
     assert StageManifest.model_validate_json(manifest.model_dump_json()) == manifest
+
+
+def stage_manifest_with_nested_inputs() -> StageManifest:
+    return StageManifest(
+        stage="normalize",
+        version="1",
+        fingerprint="abc123",
+        inputs={"pages": [104, 105], "config": {"enabled": True}},
+    )
+
+
+def test_stage_inputs_top_level_mapping_is_immutable() -> None:
+    manifest = stage_manifest_with_nested_inputs()
+    original = manifest.model_dump_json()
+
+    with pytest.raises(TypeError):
+        manifest.inputs["x"] = 1
+
+    assert manifest.model_dump_json() == original
+
+
+def test_stage_inputs_nested_array_is_immutable() -> None:
+    manifest = stage_manifest_with_nested_inputs()
+    original = manifest.model_dump_json()
+
+    with pytest.raises(AttributeError):
+        manifest.inputs["pages"].append(106)
+
+    assert manifest.model_dump_json() == original
+
+
+def test_stage_inputs_nested_mapping_is_immutable() -> None:
+    manifest = stage_manifest_with_nested_inputs()
+    original = manifest.model_dump_json()
+
+    with pytest.raises(TypeError):
+        manifest.inputs["config"]["enabled"] = False
+
+    assert manifest.model_dump_json() == original
 
 
 @pytest.mark.parametrize("unsafe_value", [object(), float("nan"), float("inf"), -float("inf")])
