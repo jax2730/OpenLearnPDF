@@ -124,7 +124,11 @@ def _validated_output_artifacts(output: Path) -> tuple[Path, Path, Path]:
 
 
 class MinerUParser:
-    """Run one contiguous range through MinerU's pipeline backend."""
+    """Run one range into a new target.
+
+    Failed runs retain their output directory and logs for diagnosis. A retry must use
+    a new target, or the caller may inspect and explicitly remove the failed target.
+    """
 
     parser_name = "mineru"
     parser_version = "1"
@@ -156,9 +160,19 @@ class MinerUParser:
         result = raw.resolve()
         if result == Path(result.anchor):
             raise ValueError("output_dir must not be a filesystem root")
-        if result.exists() and not result.is_dir():
-            raise ValueError("output_dir must be a directory")
+        if raw.exists() or _is_link_or_reparse_point(raw):
+            raise ValueError("output_dir already exists; choose a new target")
         return result
+
+    @staticmethod
+    def _reserve_output_dir(output: Path) -> None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            output.mkdir(exist_ok=False)
+        except FileExistsError as error:
+            raise ValueError(
+                "output_dir already exists; choose a new target"
+            ) from error
 
     def build_command(
         self,
@@ -208,7 +222,7 @@ class MinerUParser:
         command = self.build_command(
             source_path=source, pages=requested_pages, output_dir=output
         )
-        output.mkdir(parents=True, exist_ok=True)
+        self._reserve_output_dir(output)
         identity = {
             "backend": self.backend,
             "executable": Path(self.executable).name,
@@ -241,8 +255,8 @@ class MinerUParser:
             except OSError:
                 pass
             raise
-        raw_json_path, markdown_path, asset_dir = _validated_output_artifacts(output)
         self._write_logs(stdout_path, stderr_path, completed.stdout, completed.stderr)
+        raw_json_path, markdown_path, asset_dir = _validated_output_artifacts(output)
 
         fingerprint = hashlib.sha256(_canonical_json_bytes(identity)).hexdigest()
         return RawParseResult(

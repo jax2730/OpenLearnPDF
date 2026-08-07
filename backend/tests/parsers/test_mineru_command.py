@@ -5,6 +5,8 @@ import json
 import math
 import subprocess
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -17,6 +19,17 @@ def _create_expected_outputs(output_dir: Path) -> None:
     (output_dir / "raw.json").write_text("{}", encoding="utf-8")
     (output_dir / "document.md").write_text("document", encoding="utf-8")
     (output_dir / "assets").mkdir(exist_ok=True)
+
+
+def _output_from_command(command: list[str]) -> Path:
+    return Path(command[command.index("-o") + 1])
+
+
+def _successful_run(
+    command: list[str], **kwargs: object
+) -> subprocess.CompletedProcess[str]:
+    _create_expected_outputs(_output_from_command(command))
+    return subprocess.CompletedProcess(command, 0, "", "")
 
 
 def test_build_command_converts_one_based_pages_to_mineru_zero_based_range(
@@ -157,7 +170,7 @@ def test_invalid_log_target_is_rejected_before_subprocess(
     assert called is False
 
 
-def test_existing_log_directory_is_rejected_before_subprocess(
+def test_existing_output_with_log_directory_is_rejected_before_subprocess(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     source = tmp_path / "book.pdf"
@@ -173,7 +186,7 @@ def test_existing_log_directory_is_rejected_before_subprocess(
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 
-    with pytest.raises(ValueError, match="log paths"):
+    with pytest.raises(ValueError, match="already exists"):
         MinerUParser(stdout_log_path="logs").parse(
             source_path=source, pages=[1], output_dir=output_dir
         )
@@ -222,19 +235,85 @@ def test_same_canonical_log_target_is_rejected_before_subprocess(
     assert not (output_dir / stderr_log_path).exists()
 
 
-def test_parse_runs_argument_list_and_writes_captured_logs(
+def test_stale_output_directory_is_rejected_without_running_subprocess(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     source = tmp_path / "book.pdf"
     source.write_bytes(b"pdf")
     output_dir = tmp_path / "output"
     _create_expected_outputs(output_dir)
+    called = False
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal called
+        called = True
+        return subprocess.CompletedProcess(args[0], 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(ValueError, match="already exists"):
+        MinerUParser().parse(source_path=source, pages=[1], output_dir=output_dir)
+
+    assert called is False
+
+
+def test_same_output_directory_allows_only_one_parser_to_start(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"pdf")
+    output_dir = tmp_path / "output"
+    first = MinerUParser()
+    second = MinerUParser()
+    calls = 0
+    started = threading.Event()
+    release = threading.Event()
+
+    def fake_run(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        assert output_dir.is_dir()
+        assert list(output_dir.iterdir()) == []
+        started.set()
+        assert release.wait(timeout=5)
+        _create_expected_outputs(output_dir)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(
+            first.parse,
+            source_path=source,
+            pages=[1],
+            output_dir=output_dir,
+        )
+        assert started.wait(timeout=5)
+        try:
+            with pytest.raises(ValueError, match="already exists"):
+                second.parse(source_path=source, pages=[1], output_dir=output_dir)
+        finally:
+            release.set()
+        future.result(timeout=5)
+
+    assert calls == 1
+
+
+def test_parse_runs_argument_list_and_writes_captured_logs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"pdf")
+    output_dir = tmp_path / "output"
     calls: list[tuple[list[str], dict[str, object]]] = []
 
     def fake_run(
         command: list[str], **kwargs: object
     ) -> subprocess.CompletedProcess[str]:
         calls.append((command, kwargs))
+        _create_expected_outputs(_output_from_command(command))
         return subprocess.CompletedProcess(command, 0, "stdout text", "stderr text")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -407,8 +486,20 @@ def test_real_success_without_outputs_raises_parser_output_error(
         lambda **kwargs: [sys.executable, "-c", "pass"],
     )
 
+    script = (
+        "import sys;print('diagnostic out');print('diagnostic err',file=sys.stderr)"
+    )
+    monkeypatch.setattr(
+        parser,
+        "build_command",
+        lambda **kwargs: [sys.executable, "-c", script],
+    )
+
     with pytest.raises(ParserOutputError, match="raw.json"):
         parser.parse(source_path=source, pages=[1], output_dir=output_dir)
+
+    assert "diagnostic out" in (output_dir / "stdout.log").read_text(encoding="utf-8")
+    assert "diagnostic err" in (output_dir / "stderr.log").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -421,20 +512,23 @@ def test_success_rejects_wrong_output_artifact_types(
     source = tmp_path / "book.pdf"
     source.write_bytes(b"pdf")
     output_dir = tmp_path / "output"
-    _create_expected_outputs(output_dir)
     artifact_name, bad_type = bad_artifact.split()
-    artifact = output_dir / artifact_name
-    if bad_type == "directory":
-        artifact.unlink()
-        artifact.mkdir()
-    else:
-        artifact.rmdir()
-        artifact.write_text("not a directory", encoding="utf-8")
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
-    )
+
+    def create_bad_outputs(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        target = _output_from_command(command)
+        _create_expected_outputs(target)
+        artifact = target / artifact_name
+        if bad_type == "directory":
+            artifact.unlink()
+            artifact.mkdir()
+        else:
+            artifact.rmdir()
+            artifact.write_text("not a directory", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", create_bad_outputs)
 
     with pytest.raises(ParserOutputError, match=artifact_name):
         MinerUParser().parse(source_path=source, pages=[1], output_dir=output_dir)
@@ -443,35 +537,37 @@ def test_success_rejects_wrong_output_artifact_types(
 def test_fingerprint_is_stable_and_changes_with_key_configuration(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    source = tmp_path / "book.pdf"
-    source.write_bytes(b"same source")
-    output_dir = tmp_path / "output"
-    _create_expected_outputs(output_dir)
-    _create_expected_outputs(tmp_path / "other-output")
+    monkeypatch.setattr(subprocess, "run", _successful_run)
 
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    def parse_in_root(
+        root_name: str,
+        *,
+        executable: str = "mineru-a",
+        output_name: str = "output",
+        stdout_log_path: str = "stdout.log",
+        stderr_log_path: str = "stderr.log",
+    ) -> object:
+        root = tmp_path / root_name
+        root.mkdir()
+        source = root / "book.pdf"
+        source.write_bytes(b"same source")
+        return MinerUParser(
+            executable=executable,
+            timeout=30,
+            stdout_log_path=stdout_log_path,
+            stderr_log_path=stderr_log_path,
+        ).parse(source_path=source, pages=[2, 1], output_dir=root / output_name)
+
+    first = parse_in_root("first")
+    repeated = parse_in_root("repeated")
+    changed = parse_in_root("changed", executable="mineru-b")
+    changed_output = parse_in_root("changed-output", output_name="other-output")
+    changed_stdout_log = parse_in_root(
+        "changed-stdout", stdout_log_path="logs/stdout.log"
     )
-    first = MinerUParser(executable="mineru-a", timeout=30).parse(
-        source_path=source, pages=[2, 1], output_dir=output_dir
+    changed_stderr_log = parse_in_root(
+        "changed-stderr", stderr_log_path="logs/stderr.log"
     )
-    repeated = MinerUParser(executable="mineru-a", timeout=30).parse(
-        source_path=source, pages=[1, 2], output_dir=output_dir
-    )
-    changed = MinerUParser(executable="mineru-b", timeout=30).parse(
-        source_path=source, pages=[1, 2], output_dir=output_dir
-    )
-    changed_output = MinerUParser(executable="mineru-a", timeout=30).parse(
-        source_path=source, pages=[1, 2], output_dir=tmp_path / "other-output"
-    )
-    changed_stdout_log = MinerUParser(
-        executable="mineru-a", timeout=30, stdout_log_path="logs/stdout.log"
-    ).parse(source_path=source, pages=[1, 2], output_dir=output_dir)
-    changed_stderr_log = MinerUParser(
-        executable="mineru-a", timeout=30, stderr_log_path="logs/stderr.log"
-    ).parse(source_path=source, pages=[1, 2], output_dir=output_dir)
 
     assert first.fingerprint == repeated.fingerprint
     assert first.fingerprint != changed.fingerprint
@@ -507,13 +603,13 @@ def test_fingerprint_uses_source_identity_captured_before_process_runs(
 ) -> None:
     source = tmp_path / "book.pdf"
     source.write_bytes(b"before")
-    _create_expected_outputs(tmp_path / "output")
 
     def mutate_source(
-        *args: object, **kwargs: object
+        command: list[str], **kwargs: object
     ) -> subprocess.CompletedProcess[str]:
         source.write_bytes(b"after")
-        return subprocess.CompletedProcess(args[0], 0, "", "")
+        _create_expected_outputs(_output_from_command(command))
+        return subprocess.CompletedProcess(command, 0, "", "")
 
     monkeypatch.setattr(subprocess, "run", mutate_source)
     result = MinerUParser().parse(
@@ -549,12 +645,7 @@ def test_fingerprint_is_stable_across_copied_worktree_roots(
     for root in roots:
         root.mkdir()
         (root / "book.pdf").write_bytes(b"same pdf content")
-        _create_expected_outputs(root / "parse-output")
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
-    )
+    monkeypatch.setattr(subprocess, "run", _successful_run)
 
     results = [
         MinerUParser(executable="mineru", timeout=30).parse(
