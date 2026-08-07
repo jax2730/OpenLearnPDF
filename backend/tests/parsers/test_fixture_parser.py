@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -115,26 +115,49 @@ def test_fixture_fingerprint_tracks_fixture_content(tmp_path: Path) -> None:
     after = FixtureParser(fixture_dir).parse(pages=[105]).fingerprint
 
     assert before != after
-    assert (
-        before
-        == hashlib.sha256(
-            json.dumps(
-                {
-                    "asset_dir": str((fixture_dir / "assets").resolve()),
-                    "markdown_sha256": hashlib.sha256(b"before").hexdigest(),
-                    "pages": [105],
-                    "parser": "fixture",
-                    "raw_json_sha256": hashlib.sha256(
-                        (fixture_dir / "page-105.json").read_bytes()
-                    ).hexdigest(),
-                    "version": "1",
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest()
+
+
+def test_fixture_fingerprint_hashes_assets_and_is_stable_across_roots(
+    tmp_path: Path,
+) -> None:
+    copies = [tmp_path / "copy-a", tmp_path / "copy-b"]
+    for destination in copies:
+        shutil.copytree(FIXTURE_DIR, destination)
+
+    first = FixtureParser(copies[0]).parse(pages=[105]).fingerprint
+    copied = FixtureParser(copies[1]).parse(pages=[105]).fingerprint
+    (copies[1] / "assets" / "page-105-figure.svg").write_text(
+        "changed asset", encoding="utf-8"
     )
+    changed = FixtureParser(copies[1]).parse(pages=[105]).fingerprint
+
+    assert first == copied
+    assert first != changed
+
+
+@pytest.mark.parametrize("bad_asset", ["missing", "directory", "escape"])
+def test_fixture_rejects_invalid_referenced_asset(
+    tmp_path: Path, bad_asset: str
+) -> None:
+    fixture_dir = tmp_path / "fixture"
+    shutil.copytree(FIXTURE_DIR, fixture_dir)
+    raw_path = fixture_dir / "page-105.json"
+    payload = json.loads(raw_path.read_text(encoding="utf-8"))
+    image = payload["pdf_info"][0]["para_blocks"][2]
+    asset = fixture_dir / image["asset_path"]
+    if bad_asset == "missing":
+        asset.unlink()
+    elif bad_asset == "directory":
+        asset.unlink()
+        asset.mkdir()
+    else:
+        outside = fixture_dir / "outside.svg"
+        outside.write_text("outside", encoding="utf-8")
+        image["asset_path"] = "assets/../outside.svg"
+        raw_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="asset"):
+        FixtureParser(fixture_dir).parse(pages=[105])
 
 
 def test_fixture_parser_rejects_unsupported_page() -> None:

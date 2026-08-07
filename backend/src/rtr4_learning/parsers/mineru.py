@@ -17,6 +17,10 @@ MINERU_CLI_PAGE_INDEX_BASE = 0
 """Target MinerU CLI `-s`/`-e` indexes are zero-based and inclusive."""
 
 
+class ParserOutputError(RuntimeError):
+    """MinerU returned success without the adapter's fixed output layout."""
+
+
 def _mineru_page_index(canonical_page: int) -> int:
     return canonical_page - 1 + MINERU_CLI_PAGE_INDEX_BASE
 
@@ -37,6 +41,23 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _is_link_or_reparse_point(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction is not None and is_junction())
+
+
+def _canonical_source_path(source_path: Path | str) -> Path:
+    try:
+        source = Path(source_path).resolve(strict=True)
+    except OSError as error:
+        raise ValueError("source_path must be an existing ordinary file") from error
+    if not source.is_file() or _is_link_or_reparse_point(Path(source_path)):
+        raise ValueError("source_path must be an existing ordinary file")
+    return source
 
 
 def _safe_relative_path(value: str) -> Path:
@@ -63,6 +84,43 @@ def _contained_path(root: Path, relative: Path) -> Path:
     if candidate == root or candidate.is_dir():
         raise ValueError("log paths must target files below output_dir")
     return candidate
+
+
+def _relative_output_config(source: Path, output: Path) -> str:
+    try:
+        relative = os.path.relpath(output, start=source.parent)
+    except ValueError:
+        return output.name
+    return Path(relative).as_posix()
+
+
+def _validated_output_artifacts(output: Path) -> tuple[Path, Path, Path]:
+    raw_json_path = output / "raw.json"
+    markdown_path = output / "document.md"
+    asset_dir = output / "assets"
+    expected = (
+        (raw_json_path, "ordinary file"),
+        (markdown_path, "ordinary file"),
+        (asset_dir, "directory"),
+    )
+    for path, kind in expected:
+        resolved = path.resolve(strict=False)
+        try:
+            common = os.path.commonpath((str(output), str(resolved)))
+        except ValueError as error:
+            raise ParserOutputError(
+                f"unsafe parser output path: {path.name}"
+            ) from error
+        if os.path.normcase(common) != os.path.normcase(
+            str(output)
+        ) or _is_link_or_reparse_point(path):
+            raise ParserOutputError(f"unsafe parser output path: {path.name}")
+        valid_type = path.is_dir() if kind == "directory" else path.is_file()
+        if not valid_type:
+            raise ParserOutputError(
+                f"expected parser output {path.name} to be an {kind}"
+            )
+    return raw_json_path, markdown_path, asset_dir
 
 
 class MinerUParser:
@@ -110,9 +168,7 @@ class MinerUParser:
         output_dir: Path | str,
     ) -> list[str]:
         requested_pages = canonical_pages(pages)
-        source = Path(source_path).resolve(strict=True)
-        if not source.is_file():
-            raise ValueError("source_path must be a file")
+        source = _canonical_source_path(source_path)
         output = self._canonical_output_dir(output_dir)
         return [
             self.executable,
@@ -148,18 +204,17 @@ class MinerUParser:
         if os.path.normcase(str(stdout_path)) == os.path.normcase(str(stderr_path)):
             raise ValueError("stdout and stderr log paths must be distinct")
         requested_pages = canonical_pages(pages)
-        source = Path(source_path).resolve(strict=True)
+        source = _canonical_source_path(source_path)
         command = self.build_command(
             source_path=source, pages=requested_pages, output_dir=output
         )
         output.mkdir(parents=True, exist_ok=True)
         identity = {
             "backend": self.backend,
-            "executable": self.executable,
-            "output_dir": str(output),
+            "executable": Path(self.executable).name,
+            "output_dir": _relative_output_config(source, output),
             "pages": list(requested_pages),
             "parser": self.parser_name,
-            "source_path": str(source),
             "source_sha256": _sha256_file(source),
             "stderr_log_path": stderr_relative.as_posix(),
             "stdout_log_path": stdout_relative.as_posix(),
@@ -175,12 +230,18 @@ class MinerUParser:
                 text=True,
                 timeout=self.timeout,
             )
-        except subprocess.CalledProcessError as error:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
             try:
-                self._write_logs(stdout_path, stderr_path, error.stdout, error.stderr)
+                self._write_logs(
+                    stdout_path,
+                    stderr_path,
+                    error.stdout,
+                    error.stderr,
+                )
             except OSError:
                 pass
             raise
+        raw_json_path, markdown_path, asset_dir = _validated_output_artifacts(output)
         self._write_logs(stdout_path, stderr_path, completed.stdout, completed.stderr)
 
         fingerprint = hashlib.sha256(_canonical_json_bytes(identity)).hexdigest()
@@ -188,9 +249,9 @@ class MinerUParser:
             parser_name=self.parser_name,
             parser_version=self.parser_version,
             requested_pages=requested_pages,
-            raw_json_path=(output / "raw.json").resolve(),
-            markdown_path=(output / "document.md").resolve(),
-            asset_dir=(output / "assets").resolve(),
+            raw_json_path=raw_json_path,
+            markdown_path=markdown_path,
+            asset_dir=asset_dir,
             fingerprint=fingerprint,
         )
 

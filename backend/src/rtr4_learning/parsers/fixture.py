@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,60 @@ def _canonical_json_bytes(value: dict[str, Any]) -> bytes:
 
 def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
+
+
+def _is_link_or_reparse_point(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction is not None and is_junction())
+
+
+def _asset_references(value: object) -> Iterable[str]:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key == "asset_path" and isinstance(item, str):
+                yield item
+            else:
+                yield from _asset_references(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _asset_references(item)
+
+
+def _validate_asset_reference(
+    fixture_dir: Path, asset_dir: Path, reference: str
+) -> None:
+    if not reference.strip():
+        raise ValueError("fixture asset reference must not be empty")
+    candidate = (fixture_dir / reference).resolve(strict=False)
+    try:
+        common = os.path.commonpath((str(asset_dir), str(candidate)))
+    except ValueError as error:
+        raise ValueError("fixture asset reference escapes asset directory") from error
+    if os.path.normcase(common) != os.path.normcase(str(asset_dir)):
+        raise ValueError("fixture asset reference escapes asset directory")
+    reference_path = fixture_dir / reference
+    if _is_link_or_reparse_point(reference_path) or not reference_path.is_file():
+        raise ValueError("fixture asset reference must target an ordinary file")
+
+
+def _asset_hashes(asset_dir: Path) -> list[dict[str, str]]:
+    assets: list[dict[str, str]] = []
+    for path in sorted(asset_dir.rglob("*"), key=lambda item: item.as_posix()):
+        if _is_link_or_reparse_point(path):
+            raise ValueError("fixture asset directory must not contain links")
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            raise ValueError("fixture asset must be an ordinary file")
+        assets.append(
+            {
+                "path": path.relative_to(asset_dir.parent).as_posix(),
+                "sha256": _sha256(path.read_bytes()),
+            }
+        )
+    return assets
 
 
 class FixtureParser:
@@ -51,11 +106,14 @@ class FixtureParser:
         asset_dir = self.fixture_dir / "assets"
         raw_payload = raw_json_path.read_bytes()
         markdown_payload = markdown_path.read_bytes()
-        if not asset_dir.is_dir():
-            raise FileNotFoundError(f"fixture asset directory not found: {asset_dir}")
+        if _is_link_or_reparse_point(asset_dir) or not asset_dir.is_dir():
+            raise ValueError("fixture asset directory must be an ordinary directory")
+        raw_document = json.loads(raw_payload)
+        for reference in _asset_references(raw_document):
+            _validate_asset_reference(self.fixture_dir, asset_dir, reference)
 
         identity = {
-            "asset_dir": str(asset_dir),
+            "assets": _asset_hashes(asset_dir),
             "markdown_sha256": _sha256(markdown_payload),
             "pages": list(requested_pages),
             "parser": self.parser_name,
