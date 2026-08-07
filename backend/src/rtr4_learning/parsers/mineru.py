@@ -145,6 +145,8 @@ class MinerUParser:
         output = self._canonical_output_dir(output_dir)
         stdout_path = _contained_path(output, stdout_relative)
         stderr_path = _contained_path(output, stderr_relative)
+        if os.path.normcase(str(stdout_path)) == os.path.normcase(str(stderr_path)):
+            raise ValueError("stdout and stderr log paths must be distinct")
         requested_pages = canonical_pages(pages)
         source = Path(source_path).resolve(strict=True)
         command = self.build_command(

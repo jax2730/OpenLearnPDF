@@ -173,6 +173,47 @@ def test_existing_log_directory_is_rejected_before_subprocess(
     assert called is False
 
 
+@pytest.mark.parametrize("subprocess_outcome", ["success", "called_process_error"])
+@pytest.mark.parametrize(
+    ("stdout_log_path", "stderr_log_path"),
+    [
+        ("logs/same.log", "logs/./same.log"),
+        ("logs/SAME.log", "logs/same.log"),
+    ],
+)
+def test_same_canonical_log_target_is_rejected_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    subprocess_outcome: str,
+    stdout_log_path: str,
+    stderr_log_path: str,
+) -> None:
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"pdf")
+    output_dir = tmp_path / "output"
+    called = False
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal called
+        called = True
+        if subprocess_outcome == "called_process_error":
+            raise subprocess.CalledProcessError(2, args[0])
+        return subprocess.CompletedProcess(args[0], 0, "stdout", "stderr")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    parser = MinerUParser(
+        stdout_log_path=stdout_log_path,
+        stderr_log_path=stderr_log_path,
+    )
+
+    with pytest.raises(ValueError, match="distinct"):
+        parser.parse(source_path=source, pages=[1], output_dir=output_dir)
+
+    assert called is False
+    assert not (output_dir / stdout_log_path).exists()
+    assert not (output_dir / stderr_log_path).exists()
+
+
 def test_parse_runs_argument_list_and_writes_captured_logs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
