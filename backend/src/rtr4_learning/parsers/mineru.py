@@ -94,6 +94,22 @@ def _relative_output_config(source: Path, output: Path) -> str:
     return Path(relative).as_posix()
 
 
+def _canonical_local_path(path: Path | str) -> str:
+    value = os.path.normcase(os.path.abspath(path))
+    if value.startswith("\\\\?\\unc\\"):
+        return "\\\\" + value[8:]
+    if value.startswith("\\\\?\\"):
+        return value[4:]
+    return value
+
+
+def _executable_config(executable: str) -> str:
+    path = Path(executable)
+    if path.is_absolute():
+        return _canonical_local_path(path)
+    return executable
+
+
 def _paths_overlap(left: Path, right: Path) -> bool:
     left_value = os.path.normcase(str(left.resolve(strict=False)))
     right_value = os.path.normcase(str(right.resolve(strict=False)))
@@ -152,6 +168,9 @@ class MinerUParser:
 
     Failed runs retain their output directory and logs for diagnosis. A retry must use
     a new target, or the caller may inspect and explicitly remove the failed target.
+    Fingerprints record local command provenance, including canonical source and
+    executable paths; they are not portable cache keys. Portable stage caching belongs
+    to StageManifest plus content identity.
     """
 
     parser_name = "mineru"
@@ -250,10 +269,11 @@ class MinerUParser:
         self._reserve_output_dir(output)
         identity = {
             "backend": self.backend,
-            "executable": Path(self.executable).name,
+            "executable": _executable_config(self.executable),
             "output_dir": _relative_output_config(source, output),
             "pages": list(requested_pages),
             "parser": self.parser_name,
+            "source_path": _canonical_local_path(source),
             "source_sha256": _sha256_file(source),
             "stderr_log_path": stderr_relative.as_posix(),
             "stdout_log_path": stdout_relative.as_posix(),

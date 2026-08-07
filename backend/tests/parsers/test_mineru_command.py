@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -612,7 +614,7 @@ def test_fingerprint_is_stable_and_changes_with_key_configuration(
         "changed-stderr", stderr_log_path="logs/stderr.log"
     )
 
-    assert first.fingerprint == repeated.fingerprint
+    assert first.fingerprint != repeated.fingerprint
     assert first.fingerprint != changed.fingerprint
     assert first.fingerprint != changed_output.fingerprint
     assert first.fingerprint != changed_stdout_log.fingerprint
@@ -627,6 +629,9 @@ def test_fingerprint_is_stable_and_changes_with_key_configuration(
                     "output_dir": "output",
                     "pages": [1, 2],
                     "parser": "mineru",
+                    "source_path": os.path.normcase(
+                        os.path.abspath(tmp_path / "first" / "book.pdf")
+                    ),
                     "source_sha256": hashlib.sha256(b"same source").hexdigest(),
                     "stderr_log_path": "stderr.log",
                     "stdout_log_path": "stdout.log",
@@ -666,6 +671,7 @@ def test_fingerprint_uses_source_identity_captured_before_process_runs(
                 "output_dir": "output",
                 "pages": [1],
                 "parser": "mineru",
+                "source_path": os.path.normcase(os.path.abspath(source)),
                 "source_sha256": hashlib.sha256(b"before").hexdigest(),
                 "stderr_log_path": "stderr.log",
                 "stdout_log_path": "stdout.log",
@@ -681,7 +687,7 @@ def test_fingerprint_uses_source_identity_captured_before_process_runs(
     assert result.fingerprint == expected
 
 
-def test_fingerprint_is_stable_across_copied_worktree_roots(
+def test_fingerprint_changes_across_copied_source_paths(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     roots = [tmp_path / "worktree-a", tmp_path / "worktree-b"]
@@ -699,7 +705,49 @@ def test_fingerprint_is_stable_across_copied_worktree_roots(
         for root in roots
     ]
 
-    assert results[0].fingerprint == results[1].fingerprint
+    assert results[0].fingerprint != results[1].fingerprint
+
+
+def test_fingerprint_is_stable_for_identical_local_command_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"same pdf")
+    output_dir = tmp_path / "output"
+    monkeypatch.setattr(subprocess, "run", _successful_run)
+    parser = MinerUParser(executable="mineru", timeout=30)
+
+    first = parser.parse(source_path=source, pages=[1, 2], output_dir=output_dir)
+    shutil.rmtree(output_dir)
+    second = parser.parse(source_path=source, pages=[2, 1], output_dir=output_dir)
+
+    assert first.fingerprint == second.fingerprint
+
+
+def test_fingerprint_distinguishes_absolute_executables_with_same_name(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"same pdf")
+    output_dir = tmp_path / "output"
+    executables = [
+        tmp_path / "toolchain-a" / "mineru.exe",
+        tmp_path / "toolchain-b" / "mineru.exe",
+    ]
+    for executable in executables:
+        executable.parent.mkdir()
+        executable.write_bytes(b"stub")
+    monkeypatch.setattr(subprocess, "run", _successful_run)
+
+    first = MinerUParser(executable=str(executables[0])).parse(
+        source_path=source, pages=[1], output_dir=output_dir
+    )
+    shutil.rmtree(output_dir)
+    second = MinerUParser(executable=str(executables[1])).parse(
+        source_path=source, pages=[1], output_dir=output_dir
+    )
+
+    assert first.fingerprint != second.fingerprint
 
 
 @pytest.mark.parametrize("source_kind", ["missing", "directory"])
