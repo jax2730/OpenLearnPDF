@@ -94,6 +94,30 @@ def _relative_output_config(source: Path, output: Path) -> str:
     return Path(relative).as_posix()
 
 
+def _paths_overlap(left: Path, right: Path) -> bool:
+    left_value = os.path.normcase(str(left.resolve(strict=False)))
+    right_value = os.path.normcase(str(right.resolve(strict=False)))
+    try:
+        common = os.path.normcase(os.path.commonpath((left_value, right_value)))
+    except ValueError:
+        return False
+    return common in {left_value, right_value}
+
+
+def _validate_log_artifact_separation(output: Path, *log_paths: Path) -> None:
+    artifacts = (
+        output / "raw.json",
+        output / "document.md",
+        output / "assets",
+    )
+    if any(
+        _paths_overlap(log_path, artifact)
+        for log_path in log_paths
+        for artifact in artifacts
+    ):
+        raise ValueError("log path conflicts with parser outputs")
+
+
 def _validated_output_artifacts(output: Path) -> tuple[Path, Path, Path]:
     raw_json_path = output / "raw.json"
     markdown_path = output / "document.md"
@@ -217,6 +241,7 @@ class MinerUParser:
         stderr_path = _contained_path(output, stderr_relative)
         if os.path.normcase(str(stdout_path)) == os.path.normcase(str(stderr_path)):
             raise ValueError("stdout and stderr log paths must be distinct")
+        _validate_log_artifact_separation(output, stdout_path, stderr_path)
         requested_pages = canonical_pages(pages)
         source = _canonical_source_path(source_path)
         command = self.build_command(

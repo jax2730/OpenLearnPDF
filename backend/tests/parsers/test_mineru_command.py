@@ -235,6 +235,49 @@ def test_same_canonical_log_target_is_rejected_before_subprocess(
     assert not (output_dir / stderr_log_path).exists()
 
 
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+@pytest.mark.parametrize(
+    "conflicting_path",
+    [
+        "raw.json",
+        "raw.json/child.log",
+        "document.md",
+        "document.md/child.log",
+        "assets",
+        "assets/child.log",
+    ],
+)
+def test_log_target_conflicting_with_fixed_outputs_is_rejected_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    stream: str,
+    conflicting_path: str,
+) -> None:
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"pdf")
+    output_dir = tmp_path / "output"
+    called = False
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal called
+        called = True
+        return subprocess.CompletedProcess(args[0], 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    kwargs = {
+        f"{stream}_log_path": conflicting_path,
+        f"{'stderr' if stream == 'stdout' else 'stdout'}_log_path": "logs/other.log",
+    }
+
+    with pytest.raises(ValueError, match="conflicts with parser outputs"):
+        MinerUParser(**kwargs).parse(  # type: ignore[arg-type]
+            source_path=source, pages=[1], output_dir=output_dir
+        )
+
+    assert called is False
+    assert not output_dir.exists()
+
+
 def test_stale_output_directory_is_rejected_without_running_subprocess(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
