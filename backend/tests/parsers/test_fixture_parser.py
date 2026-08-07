@@ -38,6 +38,22 @@ def test_raw_parse_result_is_frozen_and_validates_fingerprint() -> None:
         )
 
 
+@pytest.mark.parametrize("page", [1.0, "1", True, 0, -1])
+def test_raw_parse_result_requires_strict_positive_integer_pages(
+    page: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        RawParseResult(
+            parser_name="fixture",
+            parser_version="1",
+            requested_pages=(page,),  # type: ignore[arg-type]
+            raw_json_path=FIXTURE_DIR / "page-105.json",
+            markdown_path=FIXTURE_DIR / "page-105.md",
+            asset_dir=FIXTURE_DIR / "assets",
+            fingerprint="a" * 64,
+        )
+
+
 @pytest.mark.parametrize("pages", [(), (0,), (-1,), (1, 3)])
 def test_canonical_pages_reject_invalid_or_non_contiguous_pages(
     pages: tuple[int, ...],

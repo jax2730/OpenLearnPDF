@@ -41,7 +41,13 @@ def _sha256_file(path: Path) -> str:
 
 def _safe_relative_path(value: str) -> Path:
     path = Path(value)
-    if not value or path.is_absolute() or ".." in PurePath(value).parts:
+    if (
+        not value.strip()
+        or value.endswith(("/", "\\"))
+        or path in {Path("."), Path("..")}
+        or path.is_absolute()
+        or ".." in PurePath(value).parts
+    ):
         raise ValueError("log paths must be safe relative paths")
     return path
 
@@ -54,6 +60,8 @@ def _contained_path(root: Path, relative: Path) -> Path:
         raise ValueError("log paths must be safe relative paths") from error
     if os.path.normcase(common) != os.path.normcase(str(root)):
         raise ValueError("log paths must be safe relative paths")
+    if candidate == root or candidate.is_dir():
+        raise ValueError("log paths must target files below output_dir")
     return candidate
 
 
@@ -84,9 +92,12 @@ class MinerUParser:
     @staticmethod
     def _canonical_output_dir(output_dir: Path | str) -> Path:
         raw = Path(output_dir)
-        if ".." in raw.parts:
-            raise ValueError("output_dir must not contain parent traversal")
+        raw_value = os.fspath(output_dir)
+        if not raw_value.strip() or raw in {Path("."), Path("..")} or ".." in raw.parts:
+            raise ValueError("output_dir must be a non-root directory path")
         result = raw.resolve()
+        if result == Path(result.anchor):
+            raise ValueError("output_dir must not be a filesystem root")
         if result.exists() and not result.is_dir():
             raise ValueError("output_dir must be a directory")
         return result
@@ -148,6 +159,8 @@ class MinerUParser:
             "parser": self.parser_name,
             "source_path": str(source),
             "source_sha256": _sha256_file(source),
+            "stderr_log_path": stderr_relative.as_posix(),
+            "stdout_log_path": stdout_relative.as_posix(),
             "timeout": self.timeout,
             "version": self.parser_version,
         }

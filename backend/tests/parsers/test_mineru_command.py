@@ -81,6 +81,98 @@ def test_mineru_rejects_log_path_escape(tmp_path: Path, log_name: str) -> None:
         )
 
 
+@pytest.mark.parametrize("output_value", ["", "   ", ".", ".."])
+def test_invalid_output_directory_is_rejected_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, output_value: str
+) -> None:
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"pdf")
+    called = False
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal called
+        called = True
+        return subprocess.CompletedProcess(args[0], 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(ValueError, match="output_dir"):
+        MinerUParser().parse(source_path=source, pages=[1], output_dir=output_value)
+
+    assert called is False
+
+
+def test_absolute_filesystem_root_is_rejected_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"pdf")
+    called = False
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal called
+        called = True
+        return subprocess.CompletedProcess(args[0], 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(ValueError, match="output_dir"):
+        MinerUParser().parse(
+            source_path=source,
+            pages=[1],
+            output_dir=Path(tmp_path.anchor),
+        )
+
+    assert called is False
+
+
+@pytest.mark.parametrize("log_name", ["", "   ", ".", "..", "logs/"])
+def test_invalid_log_target_is_rejected_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, log_name: str
+) -> None:
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"pdf")
+    called = False
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal called
+        called = True
+        return subprocess.CompletedProcess(args[0], 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(ValueError, match="log paths"):
+        MinerUParser(stdout_log_path=log_name).parse(
+            source_path=source, pages=[1], output_dir=tmp_path / "output"
+        )
+
+    assert called is False
+
+
+def test_existing_log_directory_is_rejected_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"pdf")
+    output_dir = tmp_path / "output"
+    (output_dir / "logs").mkdir(parents=True)
+    called = False
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal called
+        called = True
+        return subprocess.CompletedProcess(args[0], 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(ValueError, match="log paths"):
+        MinerUParser(stdout_log_path="logs").parse(
+            source_path=source, pages=[1], output_dir=output_dir
+        )
+
+    assert called is False
+
+
 def test_parse_runs_argument_list_and_writes_captured_logs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -196,10 +288,18 @@ def test_fingerprint_is_stable_and_changes_with_key_configuration(
     changed_output = MinerUParser(executable="mineru-a", timeout=30).parse(
         source_path=source, pages=[1, 2], output_dir=tmp_path / "other-output"
     )
+    changed_stdout_log = MinerUParser(
+        executable="mineru-a", timeout=30, stdout_log_path="logs/stdout.log"
+    ).parse(source_path=source, pages=[1, 2], output_dir=output_dir)
+    changed_stderr_log = MinerUParser(
+        executable="mineru-a", timeout=30, stderr_log_path="logs/stderr.log"
+    ).parse(source_path=source, pages=[1, 2], output_dir=output_dir)
 
     assert first.fingerprint == repeated.fingerprint
     assert first.fingerprint != changed.fingerprint
     assert first.fingerprint != changed_output.fingerprint
+    assert first.fingerprint != changed_stdout_log.fingerprint
+    assert first.fingerprint != changed_stderr_log.fingerprint
     assert (
         first.fingerprint
         == hashlib.sha256(
@@ -212,6 +312,8 @@ def test_fingerprint_is_stable_and_changes_with_key_configuration(
                     "parser": "mineru",
                     "source_path": str(source.resolve()),
                     "source_sha256": hashlib.sha256(b"same source").hexdigest(),
+                    "stderr_log_path": "stderr.log",
+                    "stdout_log_path": "stdout.log",
                     "timeout": 30.0,
                     "version": "1",
                 },
@@ -249,6 +351,8 @@ def test_fingerprint_uses_source_identity_captured_before_process_runs(
                 "parser": "mineru",
                 "source_path": str(source.resolve()),
                 "source_sha256": hashlib.sha256(b"before").hexdigest(),
+                "stderr_log_path": "stderr.log",
+                "stdout_log_path": "stdout.log",
                 "timeout": 300.0,
                 "version": "1",
             },

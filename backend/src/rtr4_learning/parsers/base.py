@@ -10,6 +10,8 @@ from pydantic import Field, field_validator
 
 from rtr4_learning.models import ContractModel
 
+StrictPositivePage = Annotated[int, Field(strict=True, gt=0)]
+
 
 def canonical_pages(pages: Iterable[int]) -> tuple[int, ...]:
     """Return sorted, unique, contiguous one-based PDF page numbers."""
@@ -32,7 +34,7 @@ class RawParseResult(ContractModel):
 
     parser_name: Annotated[str, Field(min_length=1)]
     parser_version: Annotated[str, Field(min_length=1)]
-    requested_pages: tuple[int, ...]
+    requested_pages: tuple[StrictPositivePage, ...]
     raw_json_path: Path
     markdown_path: Path
     asset_dir: Path
