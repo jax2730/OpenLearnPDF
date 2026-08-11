@@ -1,0 +1,64 @@
+{
+  "id": "chapter-05-section-5.1",
+  "chapter": 5,
+  "section": "5.1",
+  "title": "Gooch 着色：用方向关系组织冷暖色与高光",
+  "sections": [
+    {
+      "level": "intuition",
+      "title": "直觉",
+      "body": "不只靠明暗表达朝向：面向光的一侧偏暖，背离光的一侧偏冷，再用窄高光强调轮廓细节。",
+      "citations": ["p104-figure-5.3", "p105-formula-5.1"]
+    },
+    {
+      "level": "mathematics",
+      "title": "数学结构",
+      "body": "先由 dot(n,l) 映射出 t，再在 cool 与 warm 之间插值；最后用 s 在基础色和高光色之间插值。公式 5.2 给出冷暖色、反射向量和高光系数的具体构造。",
+      "citations": ["p105-formula-5.1", "p106-formula-5.2"]
+    },
+    {
+      "level": "graphics_meaning",
+      "title": "图形学含义",
+      "body": "法线 n、光照方向 l、观察方向 v 都应归一化。点积衡量方向对齐，高光项衡量反射方向与视线的接近程度。",
+      "citations": ["p104-figure-5.3", "p106-paragraph-1"]
+    },
+    {
+      "level": "implementation",
+      "title": "实现映射",
+      "body": "GLSL 中用 dot 计算 t，用 mix 完成两次线性插值，用 reflect 计算反射方向，并用 smoothstep 构造稳定的窄高光。",
+      "citations": ["p105-formula-5.1", "p106-formula-5.2", "p106-paragraph-1"]
+    },
+    {
+      "level": "example",
+      "title": "可运行示例",
+      "body": "示例片元着色器程序化绘制一个球面：左下区域偏冷、朝光区域偏暖，视线接近反射方向时出现白色高光。",
+      "citations": ["p105-formula-5.1", "p106-formula-5.2"]
+    },
+    {
+      "level": "pitfalls",
+      "title": "常见错误",
+      "body": "未归一化向量会破坏点积范围；把 mix 参数顺序写反会交换冷暖方向；直接使用过陡幂函数可能产生闪烁和走样。",
+      "citations": ["p104-figure-5.3", "p106-paragraph-1"]
+    },
+    {
+      "level": "exercises",
+      "title": "练习",
+      "body": "调整冷暖色、光照方向和高光阈值；解释每项改变如何影响方向可读性，并比较关闭高光后的结果。",
+      "citations": ["p105-formula-5.1", "p106-formula-5.2"]
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "为什么 t=(dot(n,l)+1)/2 能作为冷暖色插值权重？",
+      "expected_answer": "单位向量点积位于 -1 到 1，线性映射后落入 0 到 1，正好可作为插值权重。",
+      "citations": ["p106-formula-5.2", "p106-paragraph-1"]
+    },
+    {
+      "prompt": "最终颜色为什么需要第二次插值？",
+      "expected_answer": "第一次得到冷暖基础色，第二次再按高光系数把基础色推向高光色。",
+      "citations": ["p105-formula-5.1"]
+    }
+  ],
+  "shader_example_id": "gooch",
+  "shader_metadata_path": "examples/gooch.json"
+}

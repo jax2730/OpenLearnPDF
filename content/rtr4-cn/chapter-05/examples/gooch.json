@@ -1,0 +1,18 @@
+{
+  "id": "gooch",
+  "language": "glsl",
+  "stage": "fragment",
+  "source_path": "examples/gooch.frag",
+  "browser_source_path": "examples/gooch-shadertoy.frag",
+  "source_block_ids": [
+    "p104-figure-5.3",
+    "p105-formula-5.1",
+    "p106-formula-5.2",
+    "p106-paragraph-1"
+  ],
+  "expected_visual": "A sphere shaded from cool blue in the unlit direction to warm yellow in the lit direction, with a narrow white highlight.",
+  "verification_command": "glslangValidator -S frag content/rtr4-cn/chapter-05/examples/gooch.frag",
+  "external_references": [
+    "https://www.shadertoy.com/new"
+  ]
+}
