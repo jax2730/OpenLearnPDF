@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { LessonPanel } from "./components/LessonPanel";
 import { PdfReader } from "./components/PdfReader";
+import { QuestionPanel } from "./components/QuestionPanel";
 
 export default function App() {
   const [page, setPage] = useState(105);
@@ -23,11 +24,14 @@ export default function App() {
           selectedBlockId={selectedBlockId}
           onSelectBlock={setSelectedBlockId}
         />
-        <LessonPanel
-          chapterSlug="chapter-05"
-          sectionSlug="section-5.1"
-          onNavigateSource={navigateSource}
-        />
+        <div>
+          <LessonPanel
+            chapterSlug="chapter-05"
+            sectionSlug="section-5.1"
+            onNavigateSource={navigateSource}
+          />
+          <QuestionPanel onNavigateSource={navigateSource} />
+        </div>
       </div>
     </main>
   );

@@ -70,3 +70,20 @@ export interface LessonBundle {
   shader_source: string;
   browser_shader_source: string;
 }
+
+export interface RetrievalCitation {
+  block_id: string;
+  page: number;
+  bbox: BoundingBox;
+  block_type: BlockType;
+  source_excerpt: string;
+  latex?: string | null;
+  score: number;
+}
+
+export interface QuestionAnswer {
+  status: "answered" | "insufficient_evidence";
+  mode: "local_extractive" | "configured_provider";
+  answer: string;
+  citations: RetrievalCitation[];
+}

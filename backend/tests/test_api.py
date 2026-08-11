@@ -104,6 +104,22 @@ def test_search_lesson_and_capabilities_endpoints(tmp_path) -> None:
     assert capabilities.json()["local_search"] is True
 
 
+def test_grounded_question_endpoint_uses_local_sources(tmp_path) -> None:
+    client = _client(tmp_path)
+
+    response = client.post(
+        "/api/questions",
+        json={"question": "Gooch", "chapter": 5, "book_id": "rtr4-cn"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "answered"
+    assert payload["mode"] == "local_extractive"
+    assert payload["citations"]
+    assert all(item["block_id"].startswith("p") for item in payload["citations"])
+
+
 def test_api_rejects_unsafe_paths_and_missing_resources(tmp_path) -> None:
     client = _client(tmp_path)
 

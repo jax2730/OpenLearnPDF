@@ -15,21 +15,29 @@ from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
+from pydantic import Field, PositiveInt
 
 from rtr4_learning.index import HashEmbeddingProvider
-from rtr4_learning.models import Block, BookManifest, PageDocument
+from rtr4_learning.models import Block, BookManifest, ContractModel, PageDocument
 from rtr4_learning.paths import (
     _is_link_or_reparse_point,
     book_artifact_dir,
     book_manifest_path,
     validate_book_id,
 )
+from rtr4_learning.qa import QuestionAnswer, answer_question
 from rtr4_learning.retrieval import RetrievalResult, retrieve
 from rtr4_learning.settings import Settings
 from rtr4_learning.teaching import load_lesson_bundle, load_shader_sources
 
 _CONTENT_SLUG = re.compile(r"^[a-z0-9]+(?:[.-][a-z0-9]+)*$")
 _LOGGER = logging.getLogger(__name__)
+
+
+class QuestionRequestModel(ContractModel):
+    question: Annotated[str, Field(min_length=1, max_length=512)]
+    chapter: PositiveInt
+    book_id: str = "rtr4-cn"
 
 
 def _public_manifest(manifest: BookManifest) -> dict[str, object]:
@@ -159,6 +167,36 @@ def create_app(settings: Settings) -> FastAPI:
             _LOGGER.exception("search index failure for %s", path)
             raise HTTPException(
                 status_code=500, detail="search index is invalid"
+            ) from error
+
+    @app.post("/api/questions", response_model=QuestionAnswer)
+    def ask_question(request_body: QuestionRequestModel) -> QuestionAnswer:
+        _manifest(settings, request_body.book_id)
+        if not request_body.question.strip():
+            raise HTTPException(status_code=422, detail="question must not be blank")
+        path = (
+            book_artifact_dir(settings.data_root, request_body.book_id)
+            / "search.sqlite3"
+        )
+        try:
+            return answer_question(
+                request_body.question,
+                retrieve_sources=lambda question: retrieve(
+                    path,
+                    question,
+                    chapter=request_body.chapter,
+                    embedding_provider=HashEmbeddingProvider(
+                        dimensions=settings.embedding_dimensions
+                    ),
+                    limit=5,
+                ),
+            )
+        except FileNotFoundError as error:
+            raise _not_found("search index not found") from error
+        except (sqlite3.DatabaseError, ValueError, json.JSONDecodeError) as error:
+            _LOGGER.exception("question answering failure for %s", path)
+            raise HTTPException(
+                status_code=500, detail="question answering sources are invalid"
             ) from error
 
     @app.get("/api/lessons/{chapter_slug}/{section_slug}")
@@ -302,6 +340,7 @@ def create_app(settings: Settings) -> FastAPI:
     def capabilities() -> dict[str, bool]:
         return {
             "local_search": True,
+            "local_qa": True,
             "cloud_vision": bool(settings.vision_api_key),
         }
 

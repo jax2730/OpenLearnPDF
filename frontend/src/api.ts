@@ -1,4 +1,9 @@
-import type { LessonBundle, PageDocument, SourceBlock } from "./types";
+import type {
+  LessonBundle,
+  PageDocument,
+  QuestionAnswer,
+  SourceBlock,
+} from "./types";
 
 async function readJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal });
@@ -36,4 +41,20 @@ export function getLesson(
     `/api/lessons/${encodeURIComponent(chapterSlug)}/${encodeURIComponent(sectionSlug)}`,
     signal,
   );
+}
+
+export async function askQuestion(
+  question: string,
+  signal?: AbortSignal,
+): Promise<QuestionAnswer> {
+  const response = await fetch("/api/questions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, chapter: 5, book_id: "rtr4-cn" }),
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`请求失败 (${response.status})`);
+  }
+  return (await response.json()) as QuestionAnswer;
 }
