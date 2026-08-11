@@ -120,6 +120,45 @@ def test_grounded_question_endpoint_uses_local_sources(tmp_path) -> None:
     assert all(item["block_id"].startswith("p") for item in payload["citations"])
 
 
+def test_api_reads_pages_search_and_questions_from_active_bundle(tmp_path) -> None:
+    client, book_root, _ = _api_fixture(tmp_path)
+    build_id = "a" * 64
+    build_root = book_root / "builds" / build_id
+    (build_root / "normalized").mkdir(parents=True)
+    (book_root / "normalized/pages.json").replace(
+        build_root / "normalized/pages.json"
+    )
+    (book_root / "search.sqlite3").replace(build_root / "search.sqlite3")
+    (book_root / "active.json").write_text(
+        json.dumps({"schema_version": 1, "build_id": build_id}),
+        encoding="utf-8",
+    )
+
+    page = client.get("/api/books/rtr4-cn/chapters/5/pages/105")
+    search = client.get("/api/search", params={"q": "Gooch", "chapter": 5})
+    question = client.post(
+        "/api/questions",
+        json={"question": "Gooch", "chapter": 5, "book_id": "rtr4-cn"},
+    )
+
+    assert page.status_code == 200
+    assert search.status_code == 200
+    assert question.status_code == 200
+
+
+def test_api_rejects_invalid_active_build_pointer(tmp_path) -> None:
+    client, book_root, _ = _api_fixture(tmp_path)
+    (book_root / "active.json").write_text(
+        json.dumps({"schema_version": 1, "build_id": "../escape"}),
+        encoding="utf-8",
+    )
+
+    response = client.get("/api/books/rtr4-cn/chapters/5/pages/105")
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "active book build is invalid"
+
+
 def test_api_rejects_unsafe_paths_and_missing_resources(tmp_path) -> None:
     client = _client(tmp_path)
 

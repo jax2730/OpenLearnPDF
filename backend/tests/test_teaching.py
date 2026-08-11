@@ -20,7 +20,7 @@ from rtr4_learning.teaching import (
 REPO_ROOT = Path(__file__).parents[2]
 LESSON_PATH = REPO_ROOT / "content/rtr4-cn/chapter-05/section-5.1.json"
 KNOWN_BLOCK_IDS = {
-    "p104-figure-5.3",
+    "p105-figure-5.3",
     "p105-formula-5.1",
     "p106-formula-5.2",
     "p106-paragraph-1",

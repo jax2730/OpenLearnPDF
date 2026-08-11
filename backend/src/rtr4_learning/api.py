@@ -31,6 +31,7 @@ from rtr4_learning.settings import Settings
 from rtr4_learning.teaching import load_lesson_bundle, load_shader_sources
 
 _CONTENT_SLUG = re.compile(r"^[a-z0-9]+(?:[.-][a-z0-9]+)*$")
+_BUILD_ID = re.compile(r"^[0-9a-f]{64}$")
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -67,8 +68,54 @@ def _manifest(settings: Settings, book_id: str) -> BookManifest:
         raise HTTPException(status_code=500, detail="book manifest is invalid") from error
 
 
+def _book_artifact_path(settings: Settings, book_id: str, relative: Path) -> Path:
+    book_root = book_artifact_dir(settings.data_root, book_id)
+    active_path = book_root / "active.json"
+    bundle_root = book_root
+    if active_path.exists():
+        try:
+            if _is_link_or_reparse_point(active_path):
+                raise ValueError("active pointer is indirect")
+            active = json.loads(active_path.read_text(encoding="utf-8"))
+            build_id = active.get("build_id")
+            if active.get("schema_version") != 1 or not isinstance(build_id, str):
+                raise ValueError("active pointer schema is invalid")
+            if not _BUILD_ID.fullmatch(build_id):
+                raise ValueError("active build ID is invalid")
+            builds_root = book_root / "builds"
+            bundle_root = builds_root / build_id
+            for component in (builds_root, bundle_root):
+                if _is_link_or_reparse_point(component):
+                    raise ValueError("active build path is indirect")
+            if not bundle_root.is_dir():
+                raise ValueError("active build is missing")
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as error:
+            raise HTTPException(
+                status_code=500, detail="active book build is invalid"
+            ) from error
+
+    path = bundle_root / relative
+    try:
+        resolved_root = bundle_root.resolve(strict=True)
+        resolved_path = path.resolve(strict=False)
+        if not resolved_path.is_relative_to(resolved_root):
+            raise ValueError("artifact path escapes active build")
+        current = path
+        while current != bundle_root:
+            if _is_link_or_reparse_point(current):
+                raise ValueError("artifact path is indirect")
+            current = current.parent
+    except (OSError, ValueError) as error:
+        raise HTTPException(
+            status_code=500, detail="active book build is invalid"
+        ) from error
+    return path
+
+
 def _pages(settings: Settings, book_id: str) -> tuple[PageDocument, ...]:
-    path = book_artifact_dir(settings.data_root, book_id) / "normalized/pages.json"
+    path = _book_artifact_path(
+        settings, book_id, Path("normalized/pages.json")
+    )
     if not path.is_file():
         raise _not_found("normalized pages not found")
     try:
@@ -150,7 +197,7 @@ def create_app(settings: Settings) -> FastAPI:
         _manifest(settings, book_id)
         if not q.strip():
             raise HTTPException(status_code=422, detail="query must not be blank")
-        path = book_artifact_dir(settings.data_root, book_id) / "search.sqlite3"
+        path = _book_artifact_path(settings, book_id, Path("search.sqlite3"))
         try:
             return retrieve(
                 path,
@@ -174,9 +221,8 @@ def create_app(settings: Settings) -> FastAPI:
         _manifest(settings, request_body.book_id)
         if not request_body.question.strip():
             raise HTTPException(status_code=422, detail="question must not be blank")
-        path = (
-            book_artifact_dir(settings.data_root, request_body.book_id)
-            / "search.sqlite3"
+        path = _book_artifact_path(
+            settings, request_body.book_id, Path("search.sqlite3")
         )
         try:
             return answer_question(

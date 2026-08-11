@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "slice_pages": [104, 105, 106],
+  "required_blocks": {
+    "formula_5.1": "p105-formula-5.1",
+    "formula_5.2": "p106-formula-5.2",
+    "figure_5.2": "p105-figure-5.2",
+    "figure_5.3": "p105-figure-5.3"
+  },
+  "required_relations": [
+    {
+      "source": "p105-figure_caption-5.2",
+      "type": "caption_of",
+      "target": "p105-figure-5.2"
+    },
+    {
+      "source": "p105-figure_caption-5.3",
+      "type": "caption_of",
+      "target": "p105-figure-5.3"
+    }
+  ]
+}

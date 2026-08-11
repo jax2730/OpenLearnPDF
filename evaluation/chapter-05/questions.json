@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "book_id": "rtr4-cn",
+  "chapter": 5,
+  "slice_pages": [104, 105, 106],
+  "questions": [
+    {
+      "id": "slice-q01",
+      "question": "Gooch 着色如何用冷暖色表达表面朝向？",
+      "expected_pages": [104, 105],
+      "required_block_types": ["text", "figure"]
+    },
+    {
+      "id": "slice-q02",
+      "question": "方程 5.1 如何组合基础色与高光色？",
+      "expected_pages": [105],
+      "required_block_types": ["formula"]
+    },
+    {
+      "id": "slice-q03",
+      "question": "方程 5.2 中 t 与反射向量如何计算？",
+      "expected_pages": [106],
+      "required_block_types": ["formula", "text"]
+    },
+    {
+      "id": "slice-q04",
+      "question": "图 5.2 展示了什么类型的着色结果？",
+      "expected_pages": [105],
+      "required_block_types": ["figure", "figure_caption"]
+    },
+    {
+      "id": "slice-q05",
+      "question": "图 5.3 中有哪些单位方向向量？",
+      "expected_pages": [105],
+      "required_block_types": ["figure", "figure_caption"]
+    }
+  ]
+}

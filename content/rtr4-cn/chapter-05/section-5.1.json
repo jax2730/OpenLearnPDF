@@ -8,7 +8,7 @@
       "level": "intuition",
       "title": "直觉",
       "body": "不只靠明暗表达朝向：面向光的一侧偏暖，背离光的一侧偏冷，再用窄高光强调轮廓细节。",
-      "citations": ["p104-figure-5.3", "p105-formula-5.1"]
+      "citations": ["p105-figure-5.3", "p105-formula-5.1"]
     },
     {
       "level": "mathematics",
@@ -20,7 +20,7 @@
       "level": "graphics_meaning",
       "title": "图形学含义",
       "body": "法线 n、光照方向 l、观察方向 v 都应归一化。点积衡量方向对齐，高光项衡量反射方向与视线的接近程度。",
-      "citations": ["p104-figure-5.3", "p106-paragraph-1"]
+      "citations": ["p105-figure-5.3", "p106-paragraph-1"]
     },
     {
       "level": "implementation",
@@ -38,7 +38,7 @@
       "level": "pitfalls",
       "title": "常见错误",
       "body": "未归一化向量会破坏点积范围；把 mix 参数顺序写反会交换冷暖方向；直接使用过陡幂函数可能产生闪烁和走样。",
-      "citations": ["p104-figure-5.3", "p106-paragraph-1"]
+      "citations": ["p105-figure-5.3", "p106-paragraph-1"]
     },
     {
       "level": "exercises",

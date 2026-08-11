@@ -202,6 +202,13 @@ def test_probe_always_records_failures_and_cleans_gpu_job() -> None:
     assert "error = $failureMessage" in source
 
 
+def test_probe_records_source_and_artifact_content_hashes() -> None:
+    source = PROBE_SCRIPT.read_text(encoding="utf-8")
+
+    assert "source_sha256 =" in source
+    assert "sha256 = (Get-FileHash" in source
+
+
 def test_probe_captures_process_handles_and_ids_before_waiting() -> None:
     source = PROBE_SCRIPT.read_text(encoding="utf-8")
     lines = {line.strip() for line in source.splitlines()}

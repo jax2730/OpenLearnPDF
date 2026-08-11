@@ -254,8 +254,13 @@ try {
 }
 
 $artifacts = @(Get-ChildItem -LiteralPath $outputDir -Recurse -File | ForEach-Object {
-    [ordered]@{ path = $_.FullName.Substring($outputDir.Length + 1); bytes = $_.Length }
+    [ordered]@{
+        path = $_.FullName.Substring($outputDir.Length + 1)
+        bytes = $_.Length
+        sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
 })
+$sourceSha256 = (Get-FileHash -LiteralPath $pdfPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $toolchain = if (Test-Path -LiteralPath $toolchainPath) { Get-Content -Raw -Encoding UTF8 -LiteralPath $toolchainPath | ConvertFrom-Json } else { $null }
 $gpuDeltaMB = if ($null -ne $gpuPeakTotalMB -and $null -ne $gpuBaselineMB) { [math]::Max(0, $gpuPeakTotalMB - $gpuBaselineMB) } else { $null }
 $probe = [ordered]@{
@@ -267,6 +272,7 @@ $probe = [ordered]@{
     status = if ($null -eq $failureMessage -and $exitCode -eq 0) { 'succeeded' } else { 'failed' }
     error = $failureMessage
     source_pdf = $pdfPath
+    source_sha256 = $sourceSha256
     canonical_pages = $canonicalPages
     mineru_page_range = @($startPage, $endPage)
     backend = 'pipeline'
