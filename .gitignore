@@ -1,4 +1,5 @@
 .worktrees/
+.cache/
 .venv*/
 node_modules/
 dist/
