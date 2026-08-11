@@ -78,3 +78,41 @@ cd ..\frontend
 npm test
 npm run build
 ```
+
+## 6. Process and evaluate all chapter 5 pages
+
+The default MinerU probe remains pages 104-106. Full chapter processing must be
+requested explicitly:
+
+```powershell
+cd I:\pdf_reaserch\.worktrees\rtr4-learning
+.\scripts\probe-mineru.ps1 `
+  -WorkspaceRoot I:\pdf_reaserch `
+  -FirstPage 104 -LastPage 154 -RunLabel chapter-05
+```
+
+Ingest the resulting content list with the source-verified formula correction:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m rtr4_learning.cli ingest-mineru `
+  --book-id rtr4-cn `
+  --content-list "I:\pdf_reaserch\data\books\rtr4-cn\parses\mineru-chapter-05-<timestamp>\source.snapshot\auto\source.snapshot_content_list_v2.json" `
+  --first-page 104 --chapter 5 --parser-version 3.4.4 `
+  --formula-corrections "..\content\rtr4-cn\chapter-05\formula-corrections.json" `
+  --data-root I:\pdf_reaserch\data
+```
+
+Run the 20-question acceptance evaluation:
+
+```powershell
+cd ..
+.\scripts\evaluate-chapter.ps1 `
+  -WorkspaceRoot I:\pdf_reaserch\.worktrees\rtr4-learning `
+  -DataRoot I:\pdf_reaserch\data
+```
+
+The report is written to `evaluation/chapter-05/report.md`. Recoverable
+cross-page or missing-figure references stay in `validation.json` and are
+reported as visual/reference enrichment work; structural validation failures
+still prevent publication.

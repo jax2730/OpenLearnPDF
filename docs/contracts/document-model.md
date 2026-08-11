@@ -61,6 +61,14 @@ Normalization may create corrected text, LaTeX, assets, and relations, but it
 must never edit the referenced raw payload. Fixtures and manually authored
 blocks may explicitly omit both fields because no raw parser artifact exists.
 
+When a source-verified correction changes a formula, `BlockSource` also stores
+`correction_artifact`, `correction_sha256`, and `correction_evidence`. The raw
+MinerU artifact remains attached, while these fields explain exactly which
+reviewed sidecar changed the canonical value and why. The correction SHA is
+also part of the immutable build fingerprint. The recorded MinerU `probe.json`
+SHA is fingerprinted too, so identical parser output from different measured
+runs cannot reuse stale runtime provenance.
+
 ## Container manifests
 
 `PageDocument` groups canonical blocks by positive PDF page number.

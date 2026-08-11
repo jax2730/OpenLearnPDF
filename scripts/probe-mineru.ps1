@@ -3,7 +3,11 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$WorkspaceRoot,
     [switch]$DryRun,
-    [double]$MinimumFreeSpaceGB = 25
+    [double]$MinimumFreeSpaceGB = 25,
+    [int]$FirstPage = 104,
+    [int]$LastPage = 106,
+    [ValidatePattern('^[a-z0-9]+(?:-[a-z0-9]+)*$')]
+    [string]$RunLabel = 'probe'
 )
 
 $ErrorActionPreference = "Stop"
@@ -95,12 +99,20 @@ $venvPython = Join-Path $venvPath 'Scripts\python.exe'
 $validatorPath = Join-Path $PSScriptRoot 'validate-mineru-output.py'
 $mineruExe = Join-Path $venvPath 'Scripts\mineru.exe'
 $modelDownloadExe = Join-Path $venvPath 'Scripts\mineru-models-download.exe'
-$canonicalPages = @(104, 105, 106)
-$startPage = 103
-$endPage = 105
+if ($FirstPage -le 0 -or $LastPage -lt $FirstPage) {
+    throw 'Page range must be positive and ordered.'
+}
+$pageSpan = [long]$LastPage - [long]$FirstPage + 1
+if ($pageSpan -gt 200) {
+    throw 'Page span must not exceed 200 pages.'
+}
+$canonicalPages = @($FirstPage..$LastPage)
+$startPage = $FirstPage - 1
+$endPage = $LastPage - 1
 $outputParent = Join-Path $workspace 'data\books\rtr4-cn\parses'
-$plannedOutput = Join-Path $outputParent ('mineru-probe-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))
-$commandArgs = @('-p', $pdfPath, '-o', $plannedOutput, '-b', 'pipeline', '-s', "$startPage", '-e', "$endPage")
+$plannedOutput = Join-Path $outputParent ('mineru-' + $RunLabel + '-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))
+$plannedSnapshot = Join-Path $plannedOutput 'source.snapshot.pdf'
+$commandArgs = @('-p', $plannedSnapshot, '-o', $plannedOutput, '-b', 'pipeline', '-s', "$startPage", '-e', "$endPage")
 $processArguments = @($commandArgs | ForEach-Object { ConvertTo-WindowsProcessArgument $_ })
 $freeSpaceGB = Get-FreeSpaceGB $workspace
 $cacheEnvironment = Get-CacheEnvironment $workspace
@@ -125,6 +137,10 @@ if ($freeSpaceGB -lt $MinimumFreeSpaceGB) {
     throw "Insufficient free disk space: ${freeSpaceGB}GB available; ${MinimumFreeSpaceGB}GB required."
 }
 if (-not (Test-Path -LiteralPath $pdfPath -PathType Leaf)) { throw "PDF not found: $pdfPath" }
+$manifestPath = Join-Path $workspace 'data\books\rtr4-cn\book.json'
+if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw "Book manifest not found: $manifestPath" }
+$bookManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $manifestPath | ConvertFrom-Json
+if ($LastPage -gt [int]$bookManifest.page_count) { throw "LastPage exceeds registered PDF page_count." }
 if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) { throw "MinerU Python not found: $venvPython" }
 if (-not (Test-Path -LiteralPath $validatorPath -PathType Leaf)) { throw "MinerU output validator not found: $validatorPath" }
 if (-not (Test-Path -LiteralPath $mineruExe -PathType Leaf)) { throw "MinerU executable not found: $mineruExe" }
@@ -144,6 +160,10 @@ while (Test-Path -LiteralPath $outputDir) {
     $suffix += 1
 }
 [System.IO.Directory]::CreateDirectory($outputDir) | Out-Null
+$sourceSha256Before = (Get-FileHash -LiteralPath $pdfPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$snapshotPath = Join-Path $outputDir 'source.snapshot.pdf'
+New-Item -ItemType HardLink -Path $snapshotPath -Target $pdfPath | Out-Null
+$commandArgs[1] = $snapshotPath
 $commandArgs[3] = $outputDir
 $processArguments = @($commandArgs | ForEach-Object { ConvertTo-WindowsProcessArgument $_ })
 $stdoutPath = Join-Path $outputDir 'stdout.log'
@@ -167,8 +187,10 @@ $process = $null
 $processId = $null
 $modelProcessId = $null
 $gpuJob = $null
+$ramJob = $null
 $gpuBaselineMB = $null
 $gpuPeakTotalMB = $null
+$ramPeakMB = $null
 $validation = $null
 
 try {
@@ -210,9 +232,40 @@ try {
     $process = Start-Process -FilePath $mineruExe -ArgumentList $processArguments -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -NoNewWindow -PassThru
     $processId = $process.Id
     $null = $process.Handle
+    $ramJob = Start-Job -ArgumentList $stopMarker, $processId -ScriptBlock {
+        param($Marker, $RootProcessId)
+        $tracked = New-Object 'System.Collections.Generic.HashSet[int]'
+        $null = $tracked.Add([int]$RootProcessId)
+        $peakBytes = [long]0
+        while (-not (Test-Path -LiteralPath $Marker)) {
+            $processes = @(Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, WorkingSetSize -ErrorAction SilentlyContinue)
+            do {
+                $added = $false
+                foreach ($candidate in $processes) {
+                    if ($tracked.Contains([int]$candidate.ParentProcessId) -and $tracked.Add([int]$candidate.ProcessId)) {
+                        $added = $true
+                    }
+                }
+            } while ($added)
+            $workingSetBytes = [long]0
+            foreach ($candidate in $processes) {
+                if ($tracked.Contains([int]$candidate.ProcessId)) {
+                    $workingSetBytes += [long]$candidate.WorkingSetSize
+                }
+            }
+            if ($workingSetBytes -gt $peakBytes) { $peakBytes = $workingSetBytes }
+            Start-Sleep -Milliseconds 500
+        }
+        return [math]::Round($peakBytes / 1MB, 1)
+    }
     $process.WaitForExit()
     $exitCode = $process.ExitCode
     if ($exitCode -ne 0) { throw "MinerU exited with code $exitCode." }
+    $snapshotSha256After = (Get-FileHash -LiteralPath $snapshotPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $sourceSha256After = (Get-FileHash -LiteralPath $pdfPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($snapshotSha256After -ne $sourceSha256Before -or $sourceSha256After -ne $sourceSha256Before) {
+        throw 'Source PDF changed during MinerU parsing.'
+    }
 
     $phase = 'validate-output'
     $validationJson = & $venvPython $validatorPath $outputDir 2> $validationStderrPath
@@ -236,14 +289,25 @@ try {
     $failureMessage = "$phase`: $($_.Exception.Message)"
 } finally {
     $stopwatch.Stop()
-    if ($null -ne $gpuJob) {
+    if ($null -ne $gpuJob -or $null -ne $ramJob) {
         [System.IO.File]::WriteAllText($stopMarker, 'stop')
+    }
+    if ($null -ne $gpuJob) {
         Wait-Job $gpuJob | Out-Null
         try {
             $gpuResult = Receive-Job $gpuJob
             $gpuPeakTotalMB = [int]$gpuResult
         } finally {
             Remove-Job $gpuJob -Force
+        }
+    }
+    if ($null -ne $ramJob) {
+        Wait-Job $ramJob | Out-Null
+        try {
+            $ramResult = Receive-Job $ramJob
+            $ramPeakMB = [double]$ramResult
+        } finally {
+            Remove-Job $ramJob -Force
         }
     }
     if (Test-Path -LiteralPath $stopMarker) { Remove-Item -LiteralPath $stopMarker -Force }
@@ -260,7 +324,7 @@ $artifacts = @(Get-ChildItem -LiteralPath $outputDir -Recurse -File | ForEach-Ob
         sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     }
 })
-$sourceSha256 = (Get-FileHash -LiteralPath $pdfPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$sourceSha256 = $sourceSha256Before
 $toolchain = if (Test-Path -LiteralPath $toolchainPath) { Get-Content -Raw -Encoding UTF8 -LiteralPath $toolchainPath | ConvertFrom-Json } else { $null }
 $gpuDeltaMB = if ($null -ne $gpuPeakTotalMB -and $null -ne $gpuBaselineMB) { [math]::Max(0, $gpuPeakTotalMB - $gpuBaselineMB) } else { $null }
 $probe = [ordered]@{
@@ -272,16 +336,20 @@ $probe = [ordered]@{
     status = if ($null -eq $failureMessage -and $exitCode -eq 0) { 'succeeded' } else { 'failed' }
     error = $failureMessage
     source_pdf = $pdfPath
+    parsed_pdf_snapshot = $snapshotPath
     source_sha256 = $sourceSha256
     canonical_pages = $canonicalPages
     mineru_page_range = @($startPage, $endPage)
     backend = 'pipeline'
+    cloud_calls = 0
     cache_environment = $cacheEnvironment
     command = @($mineruExe) + $commandArgs
     gpu_memory_metric = 'device_global_memory_used_mb'
     gpu_baseline_total_memory_used_mb = $gpuBaselineMB
     gpu_peak_total_memory_used_mb = $gpuPeakTotalMB
     gpu_peak_delta_from_baseline_mb = $gpuDeltaMB
+    ram_memory_metric = 'mineru_process_tree_working_set_mb'
+    ram_peak_mb = $ramPeakMB
     output_validation = $validation
     output_dir = $outputDir
     artifacts = $artifacts

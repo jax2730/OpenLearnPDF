@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "corrections": [
+    {
+      "block_id": "p106-formula-5.2",
+      "page": 106,
+      "latex": "\\begin{aligned} \\mathbf c_{\\mathrm{cool}} &= (0,0,0.55)+0.25\\mathbf c_{\\mathrm{surface}}, \\\\ \\mathbf c_{\\mathrm{warm}} &= (0.3,0.3,0)+0.25\\mathbf c_{\\mathrm{surface}}, \\\\ \\mathbf c_{\\mathrm{highlight}} &= (1,1,1), \\\\ t &= \\frac{(\\mathbf n\\cdot\\mathbf l)+1}{2}, \\\\ \\mathbf r &= 2(\\mathbf n\\cdot\\mathbf l)\\mathbf n-\\mathbf l, \\\\ s &= (100(\\mathbf r\\cdot\\mathbf v)-97)^+ \\end{aligned}\\tag{5.2}",
+      "evidence": "Visually verified against the rendered source PDF page 106; MinerU confused lowercase l with digit 1 and superscript + with \\mp."
+    }
+  ],
+  "validation_dispositions": [
+    {"code":"unknown_explicit_reference","block_id":"p111-paragraph-6","evidence":"Figure 5.6 is referenced in body text but MinerU did not emit its image block; formula 5.14 is present."},
+    {"code":"unknown_explicit_reference","block_id":"p126-paragraph-3","evidence":"Figure 5.15 is referenced but its image block was not emitted by MinerU."},
+    {"code":"unknown_explicit_reference","block_id":"p126-paragraph-4","evidence":"Figure 5.16 is referenced but its image block was not emitted by MinerU."},
+    {"code":"unknown_explicit_reference","block_id":"p126-paragraph-5","evidence":"MinerU merged the Figure 5.16 caption into a paragraph without a figure block."},
+    {"code":"unknown_explicit_reference","block_id":"p127-paragraph-2","evidence":"Figure 5.16 is missing; Figure 5.17 resolves correctly."},
+    {"code":"unknown_explicit_reference","block_id":"p127-paragraph-4","evidence":"Figure 5.18 is referenced but its image block was not emitted by MinerU."},
+    {"code":"unknown_explicit_reference","block_id":"p129-paragraph-1","evidence":"Figure 5.18 is missing; nearby Figure 5.21 resolves correctly."},
+    {"code":"unknown_explicit_reference","block_id":"p130-paragraph-5","evidence":"Figure 5.22 is referenced but its image block was not emitted by MinerU."},
+    {"code":"unknown_explicit_reference","block_id":"p130-paragraph-6","evidence":"Figure 5.23 is referenced but its image block was not emitted by MinerU."},
+    {"code":"unknown_explicit_reference","block_id":"p133-paragraph-1","evidence":"MinerU text ordering produced a malformed figure phrase; retained for visual enrichment."},
+    {"code":"unknown_explicit_reference","block_id":"p149-paragraph-2","evidence":"Figure 6.27 is an intentional cross-chapter reference outside the chapter 5 slice."},
+    {"code":"unknown_explicit_reference","block_id":"p153-list-1","evidence":"Figure 5.41 is referenced but its image block was not emitted; Figure 5.42 resolves on page 154."}
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "top_k": 5,
+  "embedding_dimensions": 64,
+  "minimum_page_hits": 18,
+  "minimum_block_type_hits": 18,
+  "minimum_citation_validity": 0.95,
+  "required_formulas": [
+    {"block_id":"p105-formula-5.1","latex_sha256":"42da34dd691914d9fdd9f060c5c328148b3bfa86cfaebeafa8e1ec8886b8dd95"},
+    {"block_id":"p106-formula-5.2","latex_sha256":"a602ac4de432f32032e1d5af682bc46afe55dce3af986a495988d557b9d5f12b"}
+  ],
+  "required_figures": [
+    {"figure_id":"p105-figure-5.2","caption_id":"p105-figure_caption-5.2"},
+    {"figure_id":"p105-figure-5.3","caption_id":"p105-figure_caption-5.3"},
+    {"figure_id":"p116-figure-5.9","caption_id":"p116-figure_caption-5.9"}
+  ],
+  "abstention_query": "quantum entanglement black hole thermodynamics",
+  "abstention_minimum_score": 0.8
+}

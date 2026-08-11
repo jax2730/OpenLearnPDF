@@ -33,6 +33,7 @@ def _parser() -> argparse.ArgumentParser:
     ingest.add_argument("--chapter", required=True, type=int)
     ingest.add_argument("--parser-version", required=True)
     ingest.add_argument("--data-root", required=True)
+    ingest.add_argument("--formula-corrections")
     return parser
 
 
@@ -66,6 +67,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 first_page=args.first_page,
                 parser_version=args.parser_version,
                 chapter=args.chapter,
+                formula_corrections=args.formula_corrections,
             )
             print(
                 f"ingested {len(result.pages)} pages "

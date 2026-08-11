@@ -11,6 +11,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SETUP_SCRIPT = REPO_ROOT / "scripts" / "setup-mineru.ps1"
 PROBE_SCRIPT = REPO_ROOT / "scripts" / "probe-mineru.ps1"
+LOCAL_RUNBOOK = REPO_ROOT / "docs" / "runbooks" / "local-development.md"
 VALIDATE_OUTPUT_SCRIPT = REPO_ROOT / "scripts" / "validate-mineru-output.py"
 SANITIZED_PROBE_FIXTURE = (
     REPO_ROOT
@@ -23,7 +24,9 @@ SANITIZED_PROBE_FIXTURE = (
 POWERSHELL = shutil.which("pwsh") or shutil.which("powershell")
 
 
-def _dry_run(script: Path, workspace_root: Path) -> dict[str, object]:
+def _dry_run(
+    script: Path, workspace_root: Path, *extra_args: str
+) -> dict[str, object]:
     assert POWERSHELL is not None
     completed = subprocess.run(
         [
@@ -35,6 +38,7 @@ def _dry_run(script: Path, workspace_root: Path) -> dict[str, object]:
             "-WorkspaceRoot",
             str(workspace_root),
             "-DryRun",
+            *extra_args,
         ],
         check=True,
         capture_output=True,
@@ -135,6 +139,59 @@ def test_probe_dry_run_limits_pipeline_to_canonical_three_pages(
     assert not (workspace / "data").exists()
 
 
+@pytest.mark.skipif(POWERSHELL is None, reason="PowerShell is required")
+def test_probe_dry_run_supports_explicit_chapter_page_range(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    result = _dry_run(
+        PROBE_SCRIPT,
+        workspace,
+        "-FirstPage",
+        "104",
+        "-LastPage",
+        "154",
+        "-RunLabel",
+        "chapter-05",
+    )
+
+    assert result["canonical_pages"] == list(range(104, 155))
+    assert result["mineru_start_page"] == 103
+    assert result["mineru_end_page"] == 153
+    assert "mineru-chapter-05-" in str(result["command"][4])
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="PowerShell is required")
+def test_probe_rejects_unbounded_page_span_before_materializing_range(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    completed = subprocess.run(
+        [
+            POWERSHELL,
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(PROBE_SCRIPT),
+            "-WorkspaceRoot",
+            str(workspace),
+            "-DryRun",
+            "-FirstPage",
+            "1",
+            "-LastPage",
+            "2147483647",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "span" in completed.stderr.lower()
+
+
 def test_mineru_scripts_do_not_use_string_evaluation() -> None:
     for script in (SETUP_SCRIPT, PROBE_SCRIPT):
         source = script.read_text(encoding="utf-8")
@@ -142,7 +199,7 @@ def test_mineru_scripts_do_not_use_string_evaluation() -> None:
         assert "cmd /c" not in source.lower()
 
 
-def test_probe_avoids_native_redirection_deadlock_and_samples_wddm_gpu() -> None:
+def test_probe_avoids_deadlock_and_samples_gpu_and_process_tree_ram() -> None:
     source = PROBE_SCRIPT.read_text(encoding="utf-8")
 
     assert "Start-Process" in source
@@ -152,6 +209,12 @@ def test_probe_avoids_native_redirection_deadlock_and_samples_wddm_gpu() -> None
     assert "--query-gpu=memory.used" in source
     assert "gpu_peak_total_memory_used_mb" in source
     assert "gpu_memory_metric = 'device_global_memory_used_mb'" in source
+    assert "Get-CimInstance Win32_Process" in source
+    assert "WorkingSetSize" in source
+    assert "$ramJob = Start-Job" in source
+    assert "$ramResult = Receive-Job $ramJob" in source
+    assert "PeakWorkingSet64" not in source
+    assert "ram_peak_mb" in source
 
 
 def test_probe_unwraps_background_job_gpu_peak_to_integer() -> None:
@@ -160,6 +223,16 @@ def test_probe_unwraps_background_job_gpu_peak_to_integer() -> None:
 
     assert "$gpuResult = Receive-Job $gpuJob" in lines
     assert "$gpuPeakTotalMB = [int]$gpuResult" in lines
+
+
+def test_full_chapter_runbook_uses_snapshot_output_name() -> None:
+    source = LOCAL_RUNBOOK.read_text(encoding="utf-8")
+
+    assert "source.snapshot\\auto\\source.snapshot_content_list_v2.json" in source
+    assert (
+        "mineru-chapter-05-<timestamp>\\RTR4-CN-v1.1\\auto\\"
+        "RTR4-CN-v1.1_content_list_v2.json"
+    ) not in source
 
 
 def test_sanitized_probe_fixture_preserves_real_three_page_schema() -> None:
@@ -207,6 +280,8 @@ def test_probe_records_source_and_artifact_content_hashes() -> None:
 
     assert "source_sha256 =" in source
     assert "sha256 = (Get-FileHash" in source
+    assert "sourceSha256Before" in source
+    assert "New-Item -ItemType HardLink" in source
 
 
 def test_probe_captures_process_handles_and_ids_before_waiting() -> None:

@@ -15,6 +15,7 @@ from pathlib import Path
 import portalocker
 from pypdf import PdfReader
 
+from rtr4_learning.corrections import apply_formula_corrections
 from rtr4_learning.index import HashEmbeddingProvider, SearchIndex
 from rtr4_learning.models import BookManifest, PageDocument
 from rtr4_learning.normalize import (
@@ -124,13 +125,14 @@ def _validate_probe(
     manifest: BookManifest,
     first_page: int,
     parser_version: str,
-) -> tuple[bytes, list[int]]:
+) -> tuple[bytes, list[int], bytes]:
     probe_root = raw_path.parents[2]
     probe_path = probe_root / "probe.json"
     if not probe_path.is_file():
         raise ValueError("MinerU content list is not inside a recorded probe")
+    probe_bytes = probe_path.read_bytes()
     try:
-        probe = json.loads(probe_path.read_text(encoding="utf-8"))
+        probe = json.loads(probe_bytes)
     except json.JSONDecodeError as error:
         raise ValueError("MinerU probe metadata is invalid JSON") from error
     if probe.get("status") != "succeeded":
@@ -169,7 +171,7 @@ def _validate_probe(
         raise ValueError("MinerU content list does not match probe artifact manifest")
     if artifact.get("sha256") != hashlib.sha256(raw_bytes).hexdigest():
         raise ValueError("MinerU probe artifact SHA-256 does not match content list")
-    return raw_bytes, recorded_pages
+    return raw_bytes, recorded_pages, probe_bytes
 
 
 def ingest_mineru_slice(
@@ -181,6 +183,7 @@ def ingest_mineru_slice(
     parser_version: str,
     chapter: int,
     embedding_dimensions: int = 64,
+    formula_corrections: str | Path | None = None,
 ) -> SliceBuildResult:
     """Build canonical slice artifacts without modifying raw MinerU output."""
     if chapter <= 0:
@@ -192,7 +195,7 @@ def ingest_mineru_slice(
     manifest = BookManifest.model_validate_json(
         manifest_path.read_text(encoding="utf-8")
     )
-    raw_bytes, expected_pages = _validate_probe(
+    raw_bytes, expected_pages, probe_bytes = _validate_probe(
         raw_path,
         manifest,
         first_page,
@@ -208,29 +211,87 @@ def ingest_mineru_slice(
     canonical_pages = list(range(first_page, first_page + len(payload)))
     if canonical_pages != expected_pages:
         raise ValueError("MinerU probe page count does not match content list")
-    pages = link_relations(
-        normalize_mineru_content_list(
-            payload,
-            first_page=first_page,
-            page_sizes=_verified_page_sizes(manifest, first_page, len(payload)),
-            raw_artifact=str(raw_path),
-            parser_version=parser_version,
-        )
+    pages = normalize_mineru_content_list(
+        payload,
+        first_page=first_page,
+        page_sizes=_verified_page_sizes(manifest, first_page, len(payload)),
+        raw_artifact=str(raw_path),
+        parser_version=parser_version,
     )
+    corrections_sha256: str | None = None
+    allowed_issue_keys: set[tuple[str, str]] = set()
+    disposition_metadata: dict[tuple[str, str], dict[str, str]] = {}
+    if formula_corrections is not None:
+        corrections_path = Path(formula_corrections).resolve()
+        corrections_bytes = corrections_path.read_bytes()
+        corrections_sha256 = hashlib.sha256(corrections_bytes).hexdigest()
+        try:
+            corrections_payload = json.loads(corrections_bytes)
+        except json.JSONDecodeError as error:
+            raise ValueError("formula corrections are invalid JSON") from error
+        if not isinstance(corrections_payload, dict):
+            raise ValueError("formula corrections must be a JSON object")
+        dispositions = corrections_payload.get("validation_dispositions", [])
+        if not isinstance(dispositions, list):
+            raise ValueError("validation_dispositions must be a list")
+        for disposition in dispositions:
+            if not isinstance(disposition, dict):
+                raise TypeError("validation disposition must be an object")
+            code = disposition.get("code")
+            block_id = disposition.get("block_id")
+            evidence = disposition.get("evidence")
+            if (
+                code != "unknown_explicit_reference"
+                or not isinstance(block_id, str)
+                or not block_id.strip()
+                or not isinstance(evidence, str)
+                or not evidence.strip()
+            ):
+                raise ValueError("validation disposition is invalid")
+            allowed_issue_keys.add((code, block_id))
+            disposition_metadata[(code, block_id)] = {
+                "disposition": "accepted_pending_visual_enrichment",
+                "disposition_evidence": evidence,
+                "disposition_artifact": str(corrections_path),
+                "disposition_sha256": corrections_sha256,
+            }
+        pages = apply_formula_corrections(
+            pages,
+            corrections_payload,
+            artifact=str(corrections_path),
+            artifact_sha256=corrections_sha256,
+        )
+    pages = link_relations(pages)
     issues = validate_pages(pages)
-    if issues:
-        summary = ", ".join(f"{issue.code}:{issue.block_id}" for issue in issues)
+    fatal_issues = tuple(
+        issue
+        for issue in issues
+        if issue.block_id is None
+        or (issue.code, issue.block_id) not in allowed_issue_keys
+    )
+    if fatal_issues:
+        summary = ", ".join(
+            f"{issue.code}:{issue.block_id}" for issue in fatal_issues
+        )
         raise ValueError(f"normalized MinerU slice failed validation: {summary}")
+    issue_keys = {
+        (issue.code, issue.block_id) for issue in issues if issue.block_id is not None
+    }
+    unused_dispositions = allowed_issue_keys - issue_keys
+    if unused_dispositions:
+        raise ValueError("validation disposition does not match a current issue")
 
     book_root = book_artifact_dir(data_root, book_id)
     fingerprint_payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "source_sha256": manifest.source_sha256,
         "raw_sha256": hashlib.sha256(raw_bytes).hexdigest(),
+        "probe_sha256": hashlib.sha256(probe_bytes).hexdigest(),
         "pages": canonical_pages,
         "parser_version": parser_version,
         "chapter": chapter,
         "embedding_dimensions": embedding_dimensions,
+        "formula_corrections_sha256": corrections_sha256,
     }
     build_id = hashlib.sha256(
         json.dumps(
@@ -253,7 +314,19 @@ def ingest_mineru_slice(
                 _atomic_write_text(normalized_path, normalized_pages_json(pages))
                 _atomic_write_text(
                     validation_path,
-                    json.dumps([], ensure_ascii=False, separators=(",", ":")),
+                    json.dumps(
+                        [
+                            {
+                                **issue.model_dump(mode="json"),
+                                **disposition_metadata.get(
+                                    (issue.code, issue.block_id), {}
+                                ),
+                            }
+                            for issue in issues
+                        ],
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
                 )
                 SearchIndex(
                     index_path,

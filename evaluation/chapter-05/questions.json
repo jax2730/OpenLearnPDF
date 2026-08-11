@@ -1,38 +1,27 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "book_id": "rtr4-cn",
   "chapter": 5,
-  "slice_pages": [104, 105, 106],
   "questions": [
-    {
-      "id": "slice-q01",
-      "question": "Gooch 着色如何用冷暖色表达表面朝向？",
-      "expected_pages": [104, 105],
-      "required_block_types": ["text", "figure"]
-    },
-    {
-      "id": "slice-q02",
-      "question": "方程 5.1 如何组合基础色与高光色？",
-      "expected_pages": [105],
-      "required_block_types": ["formula"]
-    },
-    {
-      "id": "slice-q03",
-      "question": "方程 5.2 中 t 与反射向量如何计算？",
-      "expected_pages": [106],
-      "required_block_types": ["formula", "text"]
-    },
-    {
-      "id": "slice-q04",
-      "question": "图 5.2 展示了什么类型的着色结果？",
-      "expected_pages": [105],
-      "required_block_types": ["figure", "figure_caption"]
-    },
-    {
-      "id": "slice-q05",
-      "question": "图 5.3 中有哪些单位方向向量？",
-      "expected_pages": [105],
-      "required_block_types": ["figure", "figure_caption"]
-    }
+    {"id":"ch5-q01","question":"Gooch 着色模型的目标和核心输入是什么？","query":"Gooch shading model","expected_pages":[104,105],"required_block_types":["text"]},
+    {"id":"ch5-q02","question":"Gooch 如何在冷色、暖色与高光之间组合？","query":"cool warm Gooch","expected_pages":[104,105],"required_block_types":["figure"]},
+    {"id":"ch5-q03","question":"方程 5.1 如何得到最终着色颜色？","query":"Equation 5.1","expected_pages":[105],"required_block_types":["formula"]},
+    {"id":"ch5-q04","question":"方向光为什么没有位置并保持方向不变？","query":"Directional light","expected_pages":[109],"required_block_types":["text"]},
+    {"id":"ch5-q05","question":"点光源与泛光灯如何定义？","query":"point light omni light","expected_pages":[109,110],"required_block_types":["text"]},
+    {"id":"ch5-q06","question":"平方反比光照衰减有什么问题？","query":"inverse-square light attenuation","expected_pages":[110,111],"required_block_types":["text"]},
+    {"id":"ch5-q07","question":"距离衰减函数为何需要有限影响范围？","query":"distance falloff function","expected_pages":[111,112],"required_block_types":["text"]},
+    {"id":"ch5-q08","question":"聚光灯如何使用方向衰减形成光锥？","query":"spotlight","expected_pages":[113,114],"required_block_types":["text"]},
+    {"id":"ch5-q09","question":"着色计算频率有哪些选择？","query":"computation frequency","expected_pages":[115,116],"required_block_types":["text"]},
+    {"id":"ch5-q10","question":"逐顶点着色的优点和限制是什么？","query":"per-vertex shading","expected_pages":[115,116],"required_block_types":["text"]},
+    {"id":"ch5-q11","question":"逐像素着色为何能保留更多细节？","query":"per-pixel shading","expected_pages":[115,116],"required_block_types":["text"]},
+    {"id":"ch5-q12","question":"材质系统如何组织着色模型与参数？","query":"material system","expected_pages":[122,123],"required_block_types":["text"]},
+    {"id":"ch5-q13","question":"采样与滤波理论如何解释走样？","query":"sampling filtering theory","expected_pages":[125,126,127],"required_block_types":["text"]},
+    {"id":"ch5-q14","question":"Nyquist 极限对采样率有什么要求？","query":"Nyquist limit","expected_pages":[126,127],"required_block_types":["text"]},
+    {"id":"ch5-q15","question":"sinc 滤波器为何是理想低通滤波器？","query":"sinc filter","expected_pages":[128,129,130],"required_block_types":["text"]},
+    {"id":"ch5-q16","question":"基于屏幕的抗锯齿方法解决什么问题？","query":"screen-based antialiasing","expected_pages":[131,132],"required_block_types":["text"]},
+    {"id":"ch5-q17","question":"MSAA 多重采样如何减少边缘锯齿？","query":"multisampling MSAA","expected_pages":[134,135],"required_block_types":["text","figure"]},
+    {"id":"ch5-q18","question":"透明度、Alpha 与合成之间是什么关系？","query":"transparency alpha compositing","expected_pages":[140,141,149],"required_block_types":["text"]},
+    {"id":"ch5-q19","question":"预乘 Alpha 为什么能简化 over 合成？","query":"premultiplied alpha","expected_pages":[149,150],"required_block_types":["text"]},
+    {"id":"ch5-q20","question":"显示编码、sRGB 与伽马校正为何必须在线性空间配合？","query":"display encoding gamma correction sRGB","expected_pages":[150,151,152,153],"required_block_types":["text"]}
   ]
 }
