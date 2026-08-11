@@ -15,7 +15,7 @@
       "content": {
         "image_source": {"path": "images/representative-figure.jpg"},
         "image_caption": [
-          {"type": "text", "content": "Representative figure caption."}
+          {"type": "text", "content": "图5.3：示例图。"}
         ],
         "image_footnote": []
       },
@@ -56,7 +56,7 @@
       "type": "paragraph",
       "content": {
         "paragraph_content": [
-          {"type": "text", "content": "Representative text with "},
+          {"type": "text", "content": "参见图5.3和方程5.1。Representative text with "},
           {"type": "equation_inline", "content": "t\\in[0,1]"},
           {"type": "text", "content": " inline math."}
         ]
