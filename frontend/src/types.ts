@@ -40,3 +40,33 @@ export interface PageDocument {
   width_points?: number | null;
   height_points?: number | null;
 }
+
+export interface LessonSection {
+  level: string;
+  title: string;
+  body: string;
+  citations: string[];
+}
+
+export interface Lesson {
+  id: string;
+  chapter: number;
+  section: string;
+  title: string;
+  sections: LessonSection[];
+}
+
+export interface ShaderExample {
+  id: string;
+  language: "glsl";
+  stage: "fragment";
+  expected_visual: string;
+  external_references: string[];
+}
+
+export interface LessonBundle {
+  lesson: Lesson;
+  shader: ShaderExample;
+  shader_source: string;
+  browser_shader_source: string;
+}

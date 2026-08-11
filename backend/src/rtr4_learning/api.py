@@ -26,7 +26,7 @@ from rtr4_learning.paths import (
 )
 from rtr4_learning.retrieval import RetrievalResult, retrieve
 from rtr4_learning.settings import Settings
-from rtr4_learning.teaching import load_lesson_bundle
+from rtr4_learning.teaching import load_lesson_bundle, load_shader_sources
 
 _CONTENT_SLUG = re.compile(r"^[a-z0-9]+(?:[.-][a-z0-9]+)*$")
 _LOGGER = logging.getLogger(__name__)
@@ -168,9 +168,15 @@ def create_app(settings: Settings) -> FastAPI:
             raise _not_found("lesson not found")
         try:
             lesson, shader = load_lesson_bundle(path)
+            shader_source, browser_shader_source = load_shader_sources(path, shader)
         except (OSError, ValueError) as error:
             raise HTTPException(status_code=500, detail="lesson bundle is invalid") from error
-        return {"lesson": lesson, "shader": shader}
+        return {
+            "lesson": lesson,
+            "shader": shader,
+            "shader_source": shader_source,
+            "browser_shader_source": browser_shader_source,
+        }
 
     @app.get("/api/books/{book_id}/source")
     def get_source_pdf(book_id: str, request: Request):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import Counter
 from collections.abc import Collection
 from pathlib import Path
@@ -151,6 +152,62 @@ def load_lesson_bundle(path: str | Path) -> tuple[Lesson, ShaderExample]:
         if not resolved_source.is_file():
             raise FileNotFoundError(resolved_source)
     return lesson, shader
+
+
+def load_shader_sources(
+    lesson_path: str | Path, shader: ShaderExample
+) -> tuple[str, str]:
+    """Load validated desktop and browser shader sources for API delivery."""
+    base = Path(lesson_path).parent
+    return (
+        _read_content_file(base, shader.source_path),
+        _read_content_file(base, shader.browser_source_path),
+    )
+
+
+def _opened_file_path(fd: int, candidate: Path) -> Path:
+    if os.name == "nt":
+        import ctypes
+        import msvcrt
+
+        handle = msvcrt.get_osfhandle(fd)
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = ctypes.windll.kernel32.GetFinalPathNameByHandleW(
+            handle, buffer, len(buffer), 0
+        )
+        if length == 0 or length >= len(buffer):
+            raise OSError(ctypes.get_last_error(), "cannot resolve opened file")
+        value = buffer.value
+        if value.startswith("\\\\?\\UNC\\"):
+            value = "\\\\" + value[8:]
+        elif value.startswith("\\\\?\\"):
+            value = value[4:]
+        return Path(value)
+
+    descriptor = Path(f"/proc/self/fd/{fd}")
+    if descriptor.exists():
+        return Path(os.readlink(descriptor)).resolve()
+    raise OSError(f"cannot securely resolve opened file: {candidate}")
+
+
+def _read_content_file(base: Path, relative: str) -> str:
+    root = base.resolve()
+    candidate = _resolve_content_file(base, relative)
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(candidate, flags)
+    try:
+        opened_path = _opened_file_path(fd, candidate)
+        if not opened_path.is_relative_to(root):
+            raise ValueError("opened content file is outside lesson directory")
+        with os.fdopen(fd, "r", encoding="utf-8", closefd=True) as source:
+            fd = -1
+            return source.read()
+    finally:
+        if fd >= 0:
+            os.close(fd)
 
 
 def validate_lesson_bundle(

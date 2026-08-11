@@ -98,6 +98,8 @@ def test_search_lesson_and_capabilities_endpoints(tmp_path) -> None:
     assert lesson.status_code == 200
     assert lesson.json()["lesson"]["section"] == "5.1"
     assert lesson.json()["shader"]["id"] == "gooch"
+    assert "void main" in lesson.json()["shader_source"]
+    assert "mainImage" in lesson.json()["browser_shader_source"]
     assert capabilities.json()["cloud_vision"] is False
     assert capabilities.json()["local_search"] is True
 

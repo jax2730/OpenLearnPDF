@@ -7,11 +7,13 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+import rtr4_learning.teaching as teaching_module
 from rtr4_learning.teaching import (
     Lesson,
     LessonSection,
     ShaderExample,
     load_lesson_bundle,
+    load_shader_sources,
     validate_lesson_bundle,
 )
 
@@ -148,6 +150,42 @@ def test_real_gooch_lesson_has_all_levels_and_valid_citations() -> None:
     )
     assert "mainImage" in browser_source
     assert "iResolution" in browser_source
+
+
+def test_shader_source_read_rejects_file_swapped_outside_content_root(
+    tmp_path, monkeypatch
+) -> None:
+    lesson_dir = tmp_path / "content"
+    examples = lesson_dir / "examples"
+    examples.mkdir(parents=True)
+    desktop = examples / "gooch.frag"
+    browser = examples / "gooch-shadertoy.frag"
+    desktop.write_text("safe desktop", encoding="utf-8")
+    browser.write_text("safe browser", encoding="utf-8")
+    secret = tmp_path / "secret.txt"
+    secret.write_text("LOCAL_SECRET", encoding="utf-8")
+    shader = ShaderExample(
+        id="gooch",
+        language="glsl",
+        stage="fragment",
+        source_path="examples/gooch.frag",
+        browser_source_path="examples/gooch-shadertoy.frag",
+        source_block_ids=("p105-formula-5.1",),
+        expected_visual="sphere",
+        verification_command="verify",
+    )
+    real_resolve = teaching_module._resolve_content_file
+
+    def swapped_resolve(base, relative):
+        resolved = real_resolve(base, relative)
+        if relative == "examples/gooch.frag":
+            return secret
+        return resolved
+
+    monkeypatch.setattr(teaching_module, "_resolve_content_file", swapped_resolve)
+
+    with pytest.raises(ValueError, match="outside lesson directory"):
+        load_shader_sources(lesson_dir / "section.json", shader)
 
 
 def test_gooch_fragment_shader_compiles_when_validator_is_available() -> None:

@@ -1,10 +1,32 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 
 vi.mock("./components/PdfReader", () => ({
-  PdfReader: () => <div aria-label="PDF 阅读器" />,
+  PdfReader: ({
+    page,
+    selectedBlockId,
+  }: {
+    page: number;
+    selectedBlockId?: string;
+  }) => (
+    <div aria-label="PDF 阅读器">
+      {page}:{selectedBlockId ?? "none"}
+    </div>
+  ),
+}));
+
+vi.mock("./components/LessonPanel", () => ({
+  LessonPanel: ({
+    onNavigateSource,
+  }: {
+    onNavigateSource: (page: number, blockId: string) => void;
+  }) => (
+    <button onClick={() => onNavigateSource(106, "p106-formula-5.2")}>
+      跳到来源
+    </button>
+  ),
 }));
 
 describe("App", () => {
@@ -22,5 +44,15 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", { name: /RTR4 学习系统/ }),
     ).toBeInTheDocument();
+  });
+
+  it("navigates the reader and highlights a lesson citation", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "跳到来源" }));
+
+    expect(screen.getByLabelText("PDF 阅读器")).toHaveTextContent(
+      "106:p106-formula-5.2",
+    );
   });
 });

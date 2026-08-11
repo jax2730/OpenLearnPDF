@@ -1,4 +1,4 @@
-import type { PageDocument } from "./types";
+import type { LessonBundle, PageDocument, SourceBlock } from "./types";
 
 async function readJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal });
@@ -16,6 +16,24 @@ export function getPage(
 ): Promise<PageDocument> {
   return readJson<PageDocument>(
     `/api/books/${encodeURIComponent(bookId)}/chapters/${chapter}/pages/${page}`,
+    signal,
+  );
+}
+
+export function getBlock(blockId: string, signal?: AbortSignal) {
+  return readJson<SourceBlock>(
+    `/api/blocks/${encodeURIComponent(blockId)}`,
+    signal,
+  );
+}
+
+export function getLesson(
+  chapterSlug: string,
+  sectionSlug: string,
+  signal?: AbortSignal,
+) {
+  return readJson<LessonBundle>(
+    `/api/lessons/${encodeURIComponent(chapterSlug)}/${encodeURIComponent(sectionSlug)}`,
     signal,
   );
 }
