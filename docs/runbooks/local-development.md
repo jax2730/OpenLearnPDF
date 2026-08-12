@@ -100,6 +100,7 @@ cd backend
   --content-list "I:\pdf_reaserch\data\books\rtr4-cn\parses\mineru-chapter-05-<timestamp>\source.snapshot\auto\source.snapshot_content_list_v2.json" `
   --first-page 104 --chapter 5 --parser-version 3.4.4 `
   --formula-corrections "..\content\rtr4-cn\chapter-05\formula-corrections.json" `
+  --visual-enrichments "..\content\rtr4-cn\chapter-05\visual-enrichments.json" `
   --data-root I:\pdf_reaserch\data
 ```
 
@@ -112,7 +113,7 @@ cd ..
   -DataRoot I:\pdf_reaserch\data
 ```
 
-The report is written to `evaluation/chapter-05/report.md`. Recoverable
-cross-page or missing-figure references stay in `validation.json` and are
-reported as visual/reference enrichment work; structural validation failures
-still prevent publication.
+The report is written to `evaluation/chapter-05/report.md`. The seven reviewed
+figure crops are generated inside the immutable build. Only the explicit
+Figure 6.27 cross-chapter reference may remain as a non-blocking validation
+disposition; any in-chapter missing visual fails completeness.
