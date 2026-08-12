@@ -1,0 +1,16 @@
+{
+  "id": "directional-light",
+  "language": "glsl",
+  "stage": "fragment",
+  "source_path": "examples/directional-light.frag",
+  "browser_source_path": "examples/directional-light-shadertoy.frag",
+  "source_block_ids": [
+    "p108-figure-5.4",
+    "p108-formula-5.6",
+    "p109-paragraph-1",
+    "p109-paragraph-3"
+  ],
+  "expected_visual": "A matte sphere lit by one constant directional light, with a stable terminator between lit and unlit regions.",
+  "verification_command": "glslangValidator -S frag content/rtr4-cn/chapter-05/examples/directional-light.frag",
+  "external_references": ["https://www.shadertoy.com/new"]
+}

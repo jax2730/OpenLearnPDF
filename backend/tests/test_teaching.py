@@ -19,11 +19,23 @@ from rtr4_learning.teaching import (
 
 REPO_ROOT = Path(__file__).parents[2]
 LESSON_PATH = REPO_ROOT / "content/rtr4-cn/chapter-05/section-5.1.json"
+LIGHT_LESSON_PATH = REPO_ROOT / "content/rtr4-cn/chapter-05/section-5.2.json"
 KNOWN_BLOCK_IDS = {
     "p105-figure-5.3",
     "p105-formula-5.1",
     "p106-formula-5.2",
     "p106-paragraph-1",
+}
+LIGHT_BLOCK_IDS = {
+    "p106-heading-1",
+    "p106-paragraph-5",
+    "p107-formula-5.3",
+    "p107-formula-5.5",
+    "p108-figure-5.4",
+    "p108-formula-5.6",
+    "p109-paragraph-1",
+    "p109-heading-1",
+    "p109-paragraph-3",
 }
 
 
@@ -150,6 +162,24 @@ def test_real_gooch_lesson_has_all_levels_and_valid_citations() -> None:
     )
     assert "mainImage" in browser_source
     assert "iResolution" in browser_source
+
+
+def test_real_directional_light_lesson_has_all_levels_and_valid_citations() -> None:
+    lesson, shader = load_lesson_bundle(LIGHT_LESSON_PATH)
+
+    validate_lesson_bundle(lesson, shader, LIGHT_BLOCK_IDS)
+    assert lesson.section == "5.2"
+    assert {section.level for section in lesson.sections} == {
+        "intuition",
+        "mathematics",
+        "graphics_meaning",
+        "implementation",
+        "example",
+        "pitfalls",
+        "exercises",
+    }
+    assert shader.id == "directional-light"
+    assert "p109-paragraph-3" in shader.source_block_ids
 
 
 def test_shader_source_read_rejects_file_swapped_outside_content_root(
