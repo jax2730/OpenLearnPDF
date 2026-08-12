@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "render_scale": 3,
+  "text_corrections": [
+    {
+      "block_id": "p133-paragraph-1",
+      "page": 133,
+      "source_text": "一种与超采样相关的采样方法利用了累积缓冲区（accumulation buffer）的思想[637, 1115]，这种方法并不会使用一个巨大的离屏缓冲区，而是使用了一个与所需图像相同分辨率的缓冲区，不同之处在于，这个缓冲区的每个通道中包含了更多的颜色比特。为了对场景进行 的采样，该方法每帧会生成四张图2 × 2像，每张图像都是让视图在 方向上分别移动了半个像素距离生成的，这样四张图像便分别对应了像素x<sub>,</sub>网格中不同的采样点。这个方法需要每帧预渲染四张图像，并将最终处理好的图像再复制到屏幕上，这些巨大的额外成本使得该方法难以应用于实时渲染系统中。如果不考虑性能的话，这种方法可以用于生成高质量的图像，因为具体累计多少张图像是没有限制的，每个像素中都可以使用任意数量的样本，这些样本也可以位于亚像素的任意位置[1679]。在过去，累积缓冲区是一个单独的硬件模块，被OpenGL API直接支持，但是在OpenGL 3.0中被弃用了。在现代的GPU中，可以通过在输出缓冲区中使用更高精度的颜色格式，从而在像素着色器中实现这个累积缓冲区的概念。",
+      "replacement_text": "一种与超采样相关的采样方法利用了累积缓冲区（accumulation buffer）的思想[637, 1115]，这种方法并不会使用一个巨大的离屏缓冲区，而是使用了一个与所需图像相同分辨率的缓冲区，不同之处在于，这个缓冲区的每个通道中包含了更多的颜色比特。为了对场景进行 2 × 2 的采样，该方法每帧会生成四张图像，每张图像都是让视图在 x、y 方向上分别移动了半个像素距离生成的，这样四张图像便分别对应了像素网格中不同的采样点。这个方法需要每帧预渲染四张图像，并将最终处理好的图像再复制到屏幕上，这些巨大的额外成本使得该方法难以应用于实时渲染系统中。如果不考虑性能的话，这种方法可以用于生成高质量的图像，因为具体累计多少张图像是没有限制的，每个像素中都可以使用任意数量的样本，这些样本也可以位于亚像素的任意位置[1679]。在过去，累积缓冲区是一个单独的硬件模块，被OpenGL API直接支持，但是在OpenGL 3.0中被弃用了。在现代的GPU中，可以通过在输出缓冲区中使用更高精度的颜色格式，从而在像素着色器中实现这个累积缓冲区的概念。",
+      "evidence": "Visually reviewed against RTR4-CN-v1.1.pdf page 133; restored displaced 2 × 2, image, and x/y tokens without changing the surrounding prose."
+    }
+  ],
+  "validation_dispositions": [
+    {
+      "code": "unknown_explicit_reference",
+      "block_id": "p149-paragraph-2",
+      "evidence": "Figure 6.27 is an intentional cross-chapter reference outside the registered chapter 5 slice."
+    }
+  ],
+  "figures": [
+    {
+      "number": "5.6",
+      "page": 112,
+      "bbox": [0.18, 0.055, 0.82, 0.405],
+      "caption": "图 5.6：图中展示了三条曲线，其中蓝色曲线是平方反比曲线（使用了 ε 来避免分母为 0，其中 ε = 1），绿色曲线是方程 5.14 中描述的窗函数（其中 r_max = 3），红色曲线是蓝色曲线和绿色曲线相乘后的结果。",
+      "crop_sha256": "92d4dd115730912729bcace1e7385f59e0a11a7781c8089251d1aee6dba56592",
+      "evidence": "Visually reviewed against RTR4-CN-v1.1.pdf page 112 at render scale 3; crop contains the complete plot and excludes the caption."
+    },
+    {
+      "number": "5.15",
+      "page": 126,
+      "bbox": [0.1, 0.365, 0.9, 0.49],
+      "caption": "图 5.15：对一个连续信号（左图）进行采样（中图），然后通过重建方法来将其恢复成原始信号（右图）。",
+      "crop_sha256": "d55ec2bf4b564e5bbb517778424cf26c5466c8d1ac8ada8d2b3c3ed1e6cdcc12",
+      "evidence": "Visually reviewed against RTR4-CN-v1.1.pdf page 126 at render scale 3; crop contains all three signal stages and excludes the caption."
+    },
+    {
+      "number": "5.16",
+      "page": 126,
+      "bbox": [0.1, 0.635, 0.9, 0.795],
+      "caption": "图 5.16：第一行展示了一个旋转的车轮（原始信号）。第二行对信号进行了采样，但是采样并不充分，使得车轮看起来向着相反的方向旋转，这是由于采样率（sample rate）过低而导致走样的一个例子。第三行的采样率正好是每旋转一周采样两次，因此我们无法确定车轮的旋转方向，这就是 Nyquist 极限。在第四行中，采样率大于第三行的采样率，我们可以看到车轮向着正确的方向旋转。",
+      "crop_sha256": "44b8329a1728070dd59d4395a5ac0d0a3c0443371fb475d82a25e3763f41b0e1",
+      "evidence": "Visually reviewed against RTR4-CN-v1.1.pdf page 126 at render scale 3; crop contains all four wheel rows and excludes the caption."
+    },
+    {
+      "number": "5.18",
+      "page": 128,
+      "bbox": [0.1, 0.045, 0.9, 0.335],
+      "caption": "图 5.18：左上角为 box 滤波器，右上角是 tent 滤波器，下方是 sinc 滤波器（即 sin(πx)/(πx)，这里将其限制在了 x 轴上）。",
+      "crop_sha256": "d4d8cb0d3bef406c5436d1b1c318f2817e1f94374a546588c91abccbb71a7e76",
+      "evidence": "Visually reviewed against RTR4-CN-v1.1.pdf page 128 at render scale 3; crop contains the box, tent and sinc plots and excludes the caption."
+    },
+    {
+      "number": "5.22",
+      "page": 130,
+      "bbox": [0.14, 0.6, 0.86, 0.742],
+      "caption": "图 5.22：左图展示的是采样信号（红点）以及重建后的连续信号（绿色曲线）。右图中，重建后的信号会以两倍的采样率进行重采样，即进行了放大（上采样）。",
+      "crop_sha256": "265fc246f1c2ab6a2357b0a5661d1c5583c19d8f68ae793ac2539eeb28c22cda",
+      "evidence": "Visually reviewed against RTR4-CN-v1.1.pdf page 130 at render scale 3; crop contains both plots, including axes and negative lobes, and excludes the caption."
+    },
+    {
+      "number": "5.23",
+      "page": 131,
+      "bbox": [0.13, 0.12, 0.87, 0.305],
+      "caption": "图 5.23：左图展示的是采样信号（红点）以及重建后的连续信号（绿色曲线）。右图中的采样率减半，sinc 滤波器被水平缩放为原来的两倍。",
+      "crop_sha256": "2e5a161da65562973df7f636ccae5176a921e65078c26640135dc0348d797e80",
+      "evidence": "Visually reviewed against RTR4-CN-v1.1.pdf page 131 at render scale 3; crop contains both downsampling plots and excludes the caption."
+    },
+    {
+      "number": "5.41",
+      "page": 153,
+      "bbox": [0.11, 0.47, 0.9, 0.555],
+      "caption": "图 5.41：左图中，一个黑色背景（为了方便展示，图中显示的是灰色）上有一个白色三角形，其边缘覆盖了四个像素，像素内标注了真实的覆盖率。如果不进行伽马矫正的话，中间色调的像素会偏暗，从而扭曲人眼对于边缘的感知，如右图所示。",
+      "crop_sha256": "9020a23ce3d7f22216f4de5b773855c5f8da111c176fb9cb6c7b317d65d39caa",
+      "evidence": "Visually reviewed against RTR4-CN-v1.1.pdf page 153 at render scale 3; crop contains both edge-coverage diagrams and excludes the caption."
+    }
+  ]
+}

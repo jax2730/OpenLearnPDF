@@ -1,0 +1,67 @@
+[
+  [
+    {
+      "type": "title",
+      "content": {
+        "title_content": [
+          {"type": "text", "content": "Representative section"}
+        ],
+        "level": 1
+      },
+      "bbox": [99, 68, 709, 98]
+    },
+    {
+      "type": "image",
+      "content": {
+        "image_source": {"path": "images/representative-figure.jpg"},
+        "image_caption": [
+          {"type": "text", "content": "图5.3：示例图。"}
+        ],
+        "image_footnote": []
+      },
+      "bbox": [290, 277, 707, 593]
+    }
+  ],
+  [
+    {
+      "type": "paragraph",
+      "content": {
+        "paragraph_content": [
+          {"type": "text", "content": "Representative explanation before equation."}
+        ]
+      },
+      "bbox": [97, 812, 768, 828]
+    },
+    {
+      "type": "equation_interline",
+      "content": {
+        "math_content": "a=b\\tag{5.1}",
+        "math_type": "latex",
+        "image_source": {"path": "images/representative-equation-5-1.jpg"}
+      },
+      "bbox": [262, 847, 734, 868]
+    }
+  ],
+  [
+    {
+      "type": "equation_interline",
+      "content": {
+        "math_content": "x=y\\tag{5.2}",
+        "math_type": "latex",
+        "image_source": {"path": "images/representative-equation-5-2.jpg"}
+      },
+      "bbox": [337, 78, 660, 220]
+    },
+    {
+      "type": "paragraph",
+      "content": {
+        "paragraph_content": [
+          {"type": "text", "content": "参见图5.3和方程5.1。Representative text with "},
+          {"type": "equation_inline", "content": "t\\in[0,1]"},
+          {"type": "text", "content": " inline math."}
+        ]
+      },
+      "bbox": [97, 385, 897, 501]
+    }
+  ]
+]
