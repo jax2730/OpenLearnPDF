@@ -19,7 +19,7 @@
 
 **Steps:**
 
-1. Write tests requiring schema version 1, exactly figures 5.6/5.15/5.16/5.18/5.22/5.23/5.41, pages 111/126/127/130/153, normalized crop boxes, captions, evidence, and 64-hex crop hashes.
+1. Write tests requiring schema version 1, exactly figures 5.6/5.15/5.16/5.18/5.22/5.23/5.41, source pages 112/126/128/130/131/153, normalized crop boxes, captions, evidence, and 64-hex crop hashes.
 2. Run `backend\.venv\Scripts\python.exe -m pytest -q tests/test_visual_enrichment.py`; expect failure because loader does not exist.
 3. Implement sidecar models/loader in `backend/src/rtr4_learning/visual_enrichment.py`.
 4. Reuse page renders or render the five source pages at scale 3; inspect them and record reviewed crop boxes/captions/hashes.
