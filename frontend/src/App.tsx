@@ -7,6 +7,7 @@ import { QuestionPanel } from "./components/QuestionPanel";
 export default function App() {
   const [page, setPage] = useState(105);
   const [selectedBlockId, setSelectedBlockId] = useState<string>();
+  const [sectionSlug, setSectionSlug] = useState("section-5.1");
 
   const navigateSource = (sourcePage: number, blockId: string) => {
     setPage(sourcePage);
@@ -25,9 +26,17 @@ export default function App() {
           onSelectBlock={setSelectedBlockId}
         />
         <div>
+          <nav aria-label="第五章课程">
+            <button type="button" onClick={() => setSectionSlug("section-5.1")}>
+              5.1 着色模型
+            </button>
+            <button type="button" onClick={() => setSectionSlug("section-5.2")}>
+              5.2 光源
+            </button>
+          </nav>
           <LessonPanel
             chapterSlug="chapter-05"
-            sectionSlug="section-5.1"
+            sectionSlug={sectionSlug}
             onNavigateSource={navigateSource}
           />
           <QuestionPanel onNavigateSource={navigateSource} />
