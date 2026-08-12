@@ -1,6 +1,22 @@
 {
   "schema_version": 1,
   "render_scale": 3,
+  "text_corrections": [
+    {
+      "block_id": "p133-paragraph-1",
+      "page": 133,
+      "source_text": "一种与超采样相关的采样方法利用了累积缓冲区（accumulation buffer）的思想[637, 1115]，这种方法并不会使用一个巨大的离屏缓冲区，而是使用了一个与所需图像相同分辨率的缓冲区，不同之处在于，这个缓冲区的每个通道中包含了更多的颜色比特。为了对场景进行 的采样，该方法每帧会生成四张图2 × 2像，每张图像都是让视图在 方向上分别移动了半个像素距离生成的，这样四张图像便分别对应了像素x<sub>,</sub>网格中不同的采样点。这个方法需要每帧预渲染四张图像，并将最终处理好的图像再复制到屏幕上，这些巨大的额外成本使得该方法难以应用于实时渲染系统中。如果不考虑性能的话，这种方法可以用于生成高质量的图像，因为具体累计多少张图像是没有限制的，每个像素中都可以使用任意数量的样本，这些样本也可以位于亚像素的任意位置[1679]。在过去，累积缓冲区是一个单独的硬件模块，被OpenGL API直接支持，但是在OpenGL 3.0中被弃用了。在现代的GPU中，可以通过在输出缓冲区中使用更高精度的颜色格式，从而在像素着色器中实现这个累积缓冲区的概念。",
+      "replacement_text": "一种与超采样相关的采样方法利用了累积缓冲区（accumulation buffer）的思想[637, 1115]，这种方法并不会使用一个巨大的离屏缓冲区，而是使用了一个与所需图像相同分辨率的缓冲区，不同之处在于，这个缓冲区的每个通道中包含了更多的颜色比特。为了对场景进行 2 × 2 的采样，该方法每帧会生成四张图像，每张图像都是让视图在 x、y 方向上分别移动了半个像素距离生成的，这样四张图像便分别对应了像素网格中不同的采样点。这个方法需要每帧预渲染四张图像，并将最终处理好的图像再复制到屏幕上，这些巨大的额外成本使得该方法难以应用于实时渲染系统中。如果不考虑性能的话，这种方法可以用于生成高质量的图像，因为具体累计多少张图像是没有限制的，每个像素中都可以使用任意数量的样本，这些样本也可以位于亚像素的任意位置[1679]。在过去，累积缓冲区是一个单独的硬件模块，被OpenGL API直接支持，但是在OpenGL 3.0中被弃用了。在现代的GPU中，可以通过在输出缓冲区中使用更高精度的颜色格式，从而在像素着色器中实现这个累积缓冲区的概念。",
+      "evidence": "Visually reviewed against RTR4-CN-v1.1.pdf page 133; restored displaced 2 × 2, image, and x/y tokens without changing the surrounding prose."
+    }
+  ],
+  "validation_dispositions": [
+    {
+      "code": "unknown_explicit_reference",
+      "block_id": "p149-paragraph-2",
+      "evidence": "Figure 6.27 is an intentional cross-chapter reference outside the registered chapter 5 slice."
+    }
+  ],
   "figures": [
     {
       "number": "5.6",

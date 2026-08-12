@@ -102,6 +102,9 @@ class BlockSource(ContractModel):
     correction_artifact: str | None = None
     correction_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")] | None = None
     correction_evidence: str | None = None
+    enrichment_artifact: str | None = None
+    enrichment_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")] | None = None
+    enrichment_evidence: str | None = None
 
 
 class Block(ContractModel):
