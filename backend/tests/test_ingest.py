@@ -15,7 +15,13 @@ from pypdf import PdfWriter
 
 import rtr4_learning.ingest as ingest_module
 from rtr4_learning.ingest import ingest_mineru_slice
-from rtr4_learning.models import StageArtifact
+from rtr4_learning.models import (
+    Block,
+    BlockSource,
+    BlockType,
+    BoundingBox,
+    StageArtifact,
+)
 from rtr4_learning.stages.register import register_book
 
 
@@ -345,7 +351,9 @@ def test_ingest_fingerprints_and_publishes_visual_enrichments(
     data_root, _, _, raw_path, _ = _fixture(tmp_path)
     sidecar = tmp_path / "visual-enrichments.json"
     sidecar.write_text('{"version":1}', encoding="utf-8")
-    figure = SimpleNamespace(number="5.6", crop_sha256=hashlib.sha256(b"png").hexdigest())
+    figure = SimpleNamespace(
+        number="5.6", page=1, crop_sha256=hashlib.sha256(b"png").hexdigest()
+    )
     policy = SimpleNamespace(validation_dispositions=(), figures=(figure,))
     calls: list[str] = []
 
@@ -358,7 +366,27 @@ def test_ingest_fingerprints_and_publishes_visual_enrichments(
         assert artifact == str(sidecar.resolve())
         assert artifact_sha256 == hashlib.sha256(sidecar.read_bytes()).hexdigest()
         calls.append("apply")
-        return tuple(pages)
+        figure_block = Block(
+            id="p1-figure-5.6",
+            type=BlockType.FIGURE,
+            page=1,
+            bbox=BoundingBox(x0=0.1, y0=0.3, x1=0.9, y1=0.5),
+            number="5.6",
+            asset_path="assets/enriched/figure-5.6.png",
+            source=BlockSource(
+                parser="visual_enrichment",
+                version="1",
+                confidence=1,
+                enrichment_artifact=artifact,
+                enrichment_sha256=artifact_sha256,
+                enrichment_evidence="reviewed",
+            ),
+        )
+        return (
+            pages[0].model_copy(
+                update={"blocks": (*pages[0].blocks, figure_block)}
+            ),
+        )
 
     def render(manifest, loaded_policy, build_root):
         assert loaded_policy is policy

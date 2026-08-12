@@ -101,7 +101,11 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _complete_build(build_root: Path, visual_policy: object | None) -> bool:
+def _complete_build(
+    build_root: Path,
+    visual_policy: object | None,
+    visual_policy_sha256: str | None,
+) -> bool:
     required = (
         build_root / "normalized/pages.json",
         build_root / "normalized/validation.json",
@@ -112,14 +116,23 @@ def _complete_build(build_root: Path, visual_policy: object | None) -> bool:
     if visual_policy is None:
         return True
     try:
+        pages = json.loads((build_root / "normalized/pages.json").read_bytes())
+        blocks = {block["id"]: block for page in pages for block in page["blocks"]}
         return all(
             _sha256_file(
                 build_root / f"assets/enriched/figure-{figure.number}.png"
             )
             == figure.crop_sha256
+            and (
+                block := blocks.get(f"p{figure.page}-figure-{figure.number}")
+            )
+            is not None
+            and block["source"].get("raw_artifact") is None
+            and block["source"].get("enrichment_sha256")
+            == visual_policy_sha256
             for figure in visual_policy.figures
         )
-    except OSError:
+    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
         return False
 
 
@@ -375,7 +388,9 @@ def ingest_mineru_slice(
         build_root = builds_root / build_id
         temp_root: Path | None = None
         try:
-            if build_root.exists() and not _complete_build(build_root, visual_policy):
+            if build_root.exists() and not _complete_build(
+                build_root, visual_policy, visual_enrichments_sha256
+            ):
                 shutil.rmtree(build_root)
             if not build_root.is_dir():
                 temp_root = Path(
@@ -414,7 +429,9 @@ def ingest_mineru_slice(
                     temp_root = None
                 except FileExistsError:
                     pass
-            if not _complete_build(build_root, visual_policy):
+            if not _complete_build(
+                build_root, visual_policy, visual_enrichments_sha256
+            ):
                 raise ValueError("published MinerU build is incomplete")
             _atomic_write_text(
                 book_root / "active.json",

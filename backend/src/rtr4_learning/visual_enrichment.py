@@ -206,7 +206,6 @@ def apply_visual_enrichments(
             parser="visual_enrichment",
             version="1",
             confidence=1.0,
-            raw_artifact=artifact,
             raw_block_id=figure.number,
             enrichment_artifact=artifact,
             enrichment_sha256=artifact_sha256,

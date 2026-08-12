@@ -277,6 +277,7 @@ def test_applies_blocks_replaces_misclassified_content_and_links_relations() -> 
         )
         assert blocks[figure_id].source.enrichment_sha256 == "a" * 64
         assert blocks[figure_id].source.enrichment_evidence == figure.evidence
+        assert blocks[figure_id].source.raw_artifact is None
     assert any(
         relation.type == "refers_to" and relation.target == "p112-figure-5.6"
         for relation in blocks["p111-paragraph-6"].relations
