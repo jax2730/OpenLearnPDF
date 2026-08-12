@@ -69,6 +69,12 @@ also part of the immutable build fingerprint. The recorded MinerU `probe.json`
 SHA is fingerprinted too, so identical parser output from different measured
 runs cannot reuse stale runtime provenance.
 
+Reviewed visual enrichment uses the parallel `enrichment_artifact`,
+`enrichment_sha256`, and `enrichment_evidence` fields. The committed sidecar
+contains crop metadata and captions, while generated figure PNGs remain inside
+the immutable build. Both the sidecar SHA and ordered crop SHAs participate in
+the build fingerprint.
+
 ## Container manifests
 
 `PageDocument` groups canonical blocks by positive PDF page number.

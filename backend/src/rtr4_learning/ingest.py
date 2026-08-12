@@ -25,6 +25,11 @@ from rtr4_learning.normalize import (
 from rtr4_learning.paths import book_artifact_dir, book_manifest_path
 from rtr4_learning.relations import link_relations
 from rtr4_learning.validate import ValidationIssue, validate_pages
+from rtr4_learning.visual_enrichment import (
+    apply_visual_enrichments,
+    load_visual_enrichments,
+    render_visual_enrichments,
+)
 
 _LOCK_TIMEOUT_SECONDS = 30.0
 _LOCK_CHECK_INTERVAL_SECONDS = 0.02
@@ -86,6 +91,36 @@ def _atomic_write_text(path: Path, content: str) -> None:
         os.replace(temp_path, path)
     finally:
         temp_path.unlink(missing_ok=True)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _complete_build(build_root: Path, visual_policy: object | None) -> bool:
+    required = (
+        build_root / "normalized/pages.json",
+        build_root / "normalized/validation.json",
+        build_root / "search.sqlite3",
+    )
+    if any(not path.is_file() for path in required):
+        return False
+    if visual_policy is None:
+        return True
+    try:
+        return all(
+            _sha256_file(
+                build_root / f"assets/enriched/figure-{figure.number}.png"
+            )
+            == figure.crop_sha256
+            for figure in visual_policy.figures
+        )
+    except OSError:
+        return False
 
 
 def _verified_page_sizes(
@@ -184,6 +219,7 @@ def ingest_mineru_slice(
     chapter: int,
     embedding_dimensions: int = 64,
     formula_corrections: str | Path | None = None,
+    visual_enrichments: str | Path | None = None,
 ) -> SliceBuildResult:
     """Build canonical slice artifacts without modifying raw MinerU output."""
     if chapter <= 0:
@@ -219,6 +255,8 @@ def ingest_mineru_slice(
         parser_version=parser_version,
     )
     corrections_sha256: str | None = None
+    visual_enrichments_sha256: str | None = None
+    visual_policy = None
     allowed_issue_keys: set[tuple[str, str]] = set()
     disposition_metadata: dict[tuple[str, str], dict[str, str]] = {}
     if formula_corrections is not None:
@@ -261,6 +299,26 @@ def ingest_mineru_slice(
             artifact=str(corrections_path),
             artifact_sha256=corrections_sha256,
         )
+    if visual_enrichments is not None:
+        visual_path = Path(visual_enrichments).resolve()
+        visual_bytes = visual_path.read_bytes()
+        visual_enrichments_sha256 = hashlib.sha256(visual_bytes).hexdigest()
+        visual_policy = load_visual_enrichments(visual_path)
+        pages = apply_visual_enrichments(
+            pages,
+            visual_policy,
+            artifact=str(visual_path),
+            artifact_sha256=visual_enrichments_sha256,
+        )
+        for disposition in visual_policy.validation_dispositions:
+            key = (disposition.code, disposition.block_id)
+            allowed_issue_keys.add(key)
+            disposition_metadata[key] = {
+                "disposition": "accepted_cross_chapter_reference",
+                "disposition_evidence": disposition.evidence,
+                "disposition_artifact": str(visual_path),
+                "disposition_sha256": visual_enrichments_sha256,
+            }
     pages = link_relations(pages)
     issues = validate_pages(pages)
     fatal_issues = tuple(
@@ -278,12 +336,19 @@ def ingest_mineru_slice(
         (issue.code, issue.block_id) for issue in issues if issue.block_id is not None
     }
     unused_dispositions = allowed_issue_keys - issue_keys
+    if visual_policy is not None:
+        unused_dispositions = {
+            key
+            for key in unused_dispositions
+            if disposition_metadata[key]["disposition"]
+            != "accepted_pending_visual_enrichment"
+        }
     if unused_dispositions:
         raise ValueError("validation disposition does not match a current issue")
 
     book_root = book_artifact_dir(data_root, book_id)
     fingerprint_payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "source_sha256": manifest.source_sha256,
         "raw_sha256": hashlib.sha256(raw_bytes).hexdigest(),
         "probe_sha256": hashlib.sha256(probe_bytes).hexdigest(),
@@ -292,6 +357,12 @@ def ingest_mineru_slice(
         "chapter": chapter,
         "embedding_dimensions": embedding_dimensions,
         "formula_corrections_sha256": corrections_sha256,
+        "visual_enrichments_sha256": visual_enrichments_sha256,
+        "visual_crop_sha256": (
+            [figure.crop_sha256 for figure in visual_policy.figures]
+            if visual_policy is not None
+            else None
+        ),
     }
     build_id = hashlib.sha256(
         json.dumps(
@@ -304,6 +375,8 @@ def ingest_mineru_slice(
         build_root = builds_root / build_id
         temp_root: Path | None = None
         try:
+            if build_root.exists() and not _complete_build(build_root, visual_policy):
+                shutil.rmtree(build_root)
             if not build_root.is_dir():
                 temp_root = Path(
                     tempfile.mkdtemp(prefix=f".{build_id}.tmp-", dir=builds_root)
@@ -311,6 +384,8 @@ def ingest_mineru_slice(
                 normalized_path = temp_root / "normalized/pages.json"
                 validation_path = temp_root / "normalized/validation.json"
                 index_path = temp_root / "search.sqlite3"
+                if visual_policy is not None:
+                    render_visual_enrichments(manifest, visual_policy, temp_root)
                 _atomic_write_text(normalized_path, normalized_pages_json(pages))
                 _atomic_write_text(
                     validation_path,
@@ -339,12 +414,7 @@ def ingest_mineru_slice(
                     temp_root = None
                 except FileExistsError:
                     pass
-            required = (
-                build_root / "normalized/pages.json",
-                build_root / "normalized/validation.json",
-                build_root / "search.sqlite3",
-            )
-            if any(not path.is_file() for path in required):
+            if not _complete_build(build_root, visual_policy):
                 raise ValueError("published MinerU build is incomplete")
             _atomic_write_text(
                 book_root / "active.json",

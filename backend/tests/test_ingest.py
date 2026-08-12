@@ -15,6 +15,7 @@ from pypdf import PdfWriter
 
 import rtr4_learning.ingest as ingest_module
 from rtr4_learning.ingest import ingest_mineru_slice
+from rtr4_learning.models import StageArtifact
 from rtr4_learning.stages.register import register_book
 
 
@@ -336,3 +337,152 @@ def test_failed_active_pointer_publish_keeps_previous_bundle(tmp_path, monkeypat
     active = json.loads(active_before)
     old_pages = data_root / "books/sample/builds" / active["build_id"] / "normalized/pages.json"
     assert old_pages.read_bytes() == pages_before
+
+
+def test_ingest_fingerprints_and_publishes_visual_enrichments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root, _, _, raw_path, _ = _fixture(tmp_path)
+    sidecar = tmp_path / "visual-enrichments.json"
+    sidecar.write_text('{"version":1}', encoding="utf-8")
+    figure = SimpleNamespace(number="5.6", crop_sha256=hashlib.sha256(b"png").hexdigest())
+    policy = SimpleNamespace(validation_dispositions=(), figures=(figure,))
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        ingest_module, "load_visual_enrichments", lambda path: policy
+    )
+
+    def apply(pages, loaded_policy, *, artifact, artifact_sha256):
+        assert loaded_policy is policy
+        assert artifact == str(sidecar.resolve())
+        assert artifact_sha256 == hashlib.sha256(sidecar.read_bytes()).hexdigest()
+        calls.append("apply")
+        return tuple(pages)
+
+    def render(manifest, loaded_policy, build_root):
+        assert loaded_policy is policy
+        calls.append("render")
+        output = Path(build_root) / "assets/enriched/figure-5.6.png"
+        output.parent.mkdir(parents=True)
+        output.write_bytes(b"png")
+        return (
+            StageArtifact(
+                path="assets/enriched/figure-5.6.png",
+                size=3,
+                sha256=hashlib.sha256(b"png").hexdigest(),
+                pixel_width=1,
+                pixel_height=1,
+            ),
+        )
+
+    monkeypatch.setattr(ingest_module, "apply_visual_enrichments", apply)
+    monkeypatch.setattr(ingest_module, "render_visual_enrichments", render)
+
+    first = ingest_mineru_slice(
+        data_root=data_root,
+        book_id="sample",
+        content_list=raw_path,
+        first_page=1,
+        parser_version="3.4.4",
+        chapter=5,
+        visual_enrichments=sidecar,
+    )
+    first_build = first.normalized_path.parent.parent
+    assert calls == ["apply", "render"]
+    assert (first_build / "assets/enriched/figure-5.6.png").read_bytes() == b"png"
+
+    sidecar.write_text('{"version":1, "review":true}', encoding="utf-8")
+    calls.clear()
+    second = ingest_mineru_slice(
+        data_root=data_root,
+        book_id="sample",
+        content_list=raw_path,
+        first_page=1,
+        parser_version="3.4.4",
+        chapter=5,
+        visual_enrichments=sidecar,
+    )
+    assert second.normalized_path.parent.parent != first_build
+    assert calls == ["apply", "render"]
+
+    second_asset = second.normalized_path.parent.parent / "assets/enriched/figure-5.6.png"
+    second_asset.write_bytes(b"tampered")
+    calls.clear()
+    repaired = ingest_mineru_slice(
+        data_root=data_root,
+        book_id="sample",
+        content_list=raw_path,
+        first_page=1,
+        parser_version="3.4.4",
+        chapter=5,
+        visual_enrichments=sidecar,
+    )
+    assert repaired.normalized_path == second.normalized_path
+    assert calls == ["apply", "render"]
+    assert second_asset.read_bytes() == b"png"
+
+
+def test_visual_render_failure_does_not_publish_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_root, _, _, raw_path, _ = _fixture(tmp_path)
+    sidecar = tmp_path / "visual-enrichments.json"
+    sidecar.write_text("{}", encoding="utf-8")
+    policy = SimpleNamespace(validation_dispositions=(), figures=())
+    monkeypatch.setattr(
+        ingest_module, "load_visual_enrichments", lambda path: policy
+    )
+    monkeypatch.setattr(
+        ingest_module,
+        "apply_visual_enrichments",
+        lambda pages, *args, **kwargs: tuple(pages),
+    )
+
+    def fail_render(manifest, loaded_policy, build_root):
+        partial = Path(build_root) / "assets/enriched/partial.png"
+        partial.parent.mkdir(parents=True)
+        partial.write_bytes(b"partial")
+        raise ValueError("synthetic visual render failure")
+
+    monkeypatch.setattr(ingest_module, "render_visual_enrichments", fail_render)
+
+    with pytest.raises(ValueError, match="synthetic visual render failure"):
+        ingest_mineru_slice(
+            data_root=data_root,
+            book_id="sample",
+            content_list=raw_path,
+            first_page=1,
+            parser_version="3.4.4",
+            chapter=5,
+            visual_enrichments=sidecar,
+        )
+
+    builds = data_root / "books/sample/builds"
+    assert not builds.exists() or not any(builds.iterdir())
+
+
+def test_ingest_cli_accepts_visual_enrichments() -> None:
+    from rtr4_learning.cli import _parser
+
+    args = _parser().parse_args(
+        [
+            "ingest-mineru",
+            "--book-id",
+            "sample",
+            "--content-list",
+            "content.json",
+            "--first-page",
+            "1",
+            "--chapter",
+            "5",
+            "--parser-version",
+            "3.4.4",
+            "--data-root",
+            "data",
+            "--visual-enrichments",
+            "visual.json",
+        ]
+    )
+
+    assert args.visual_enrichments == "visual.json"
