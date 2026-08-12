@@ -18,6 +18,7 @@ from rtr4_learning.models import (
     BlockSource,
     BlockType,
     BoundingBox,
+    Relation,
 )
 from rtr4_learning.retrieval import RetrievalResult, ScoreComponents
 
@@ -271,3 +272,80 @@ def test_rubric_cannot_remove_required_formula_or_figure_gates() -> None:
                 "required_figures": [],
             }
         )
+
+
+def test_completeness_allows_only_fixed_cross_chapter_disposition() -> None:
+    assert chapter_evaluation.content_is_complete(
+        [
+            {
+                "code": "unknown_explicit_reference",
+                "block_id": "p149-paragraph-2",
+                "disposition": "accepted_cross_chapter_reference",
+            }
+        ]
+    )
+    assert not chapter_evaluation.content_is_complete(
+        [
+            {
+                "code": "unknown_explicit_reference",
+                "block_id": "p126-paragraph-3",
+                "disposition": "accepted_pending_visual_enrichment",
+            }
+        ]
+    )
+
+
+def test_enriched_figure_requires_matching_asset_sha(tmp_path: Path) -> None:
+    figure = Block(
+        id="p112-figure-5.6",
+        type=BlockType.FIGURE,
+        page=112,
+        bbox=BoundingBox(x0=0.1, y0=0.1, x1=0.9, y1=0.5),
+        number="5.6",
+        asset_path="assets/enriched/figure-5.6.png",
+        source=BlockSource(parser="visual_enrichment", version="1", confidence=1),
+    )
+    caption = Block(
+        id="p112-figure_caption-5.6",
+        type=BlockType.FIGURE_CAPTION,
+        page=112,
+        bbox=figure.bbox,
+        text="图 5.6：caption",
+        number="5.6",
+        relations=(),
+        source=figure.source,
+    )
+    asset = tmp_path / figure.asset_path
+    asset.parent.mkdir(parents=True)
+    asset.write_bytes(b"png")
+    requirement = {
+        "figure_id": figure.id,
+        "caption_id": caption.id,
+        "asset_sha256": hashlib.sha256(b"png").hexdigest(),
+    }
+
+    assert chapter_evaluation.figure_matches(
+        figure,
+        caption.model_copy(
+            update={
+                "relations": (
+                    Relation(type="caption_of", target=figure.id),
+                )
+            }
+        ),
+        requirement,
+        tmp_path,
+    )
+    asset.write_bytes(b"bad")
+    assert not chapter_evaluation.figure_matches(
+        figure,
+        caption.model_copy(
+            update={
+                "relations": (
+                    Relation(type="caption_of", target=figure.id),
+                )
+            }
+        ),
+        requirement,
+        tmp_path,
+    )

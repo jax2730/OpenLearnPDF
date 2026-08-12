@@ -17,7 +17,7 @@ from rtr4_learning.retrieval import RetrievalResult, retrieve
 
 _BUILD_ID = re.compile(r"^[0-9a-f]{64}$")
 _FIXED_QUESTIONS_SHA256 = "ea3840d6ea1c49224693e78cbaf837a36b4b6ad2d77ae58fc12e51d97c5846cd"
-_FIXED_RUBRIC_SHA256 = "a0145d8652a989db942f3f9afa7792977e1955e450d4a2ef84768c89c9dbddda"
+_FIXED_RUBRIC_SHA256 = "8190adff5afda9d669a698763f5eb669bdd0de7504817db53c45901f9094125b"
 _REQUIRED_FORMULAS = {
     "p105-formula-5.1": "42da34dd691914d9fdd9f060c5c328148b3bfa86cfaebeafa8e1ec8886b8dd95",
     "p106-formula-5.2": "a602ac4de432f32032e1d5af682bc46afe55dce3af986a495988d557b9d5f12b",
@@ -26,7 +26,19 @@ _REQUIRED_FIGURES = {
     "p105-figure-5.2",
     "p105-figure-5.3",
     "p116-figure-5.9",
+    "p112-figure-5.6",
+    "p126-figure-5.15",
+    "p126-figure-5.16",
+    "p128-figure-5.18",
+    "p130-figure-5.22",
+    "p131-figure-5.23",
+    "p153-figure-5.41",
 }
+_ALLOWED_COMPLETENESS_ISSUE = (
+    "unknown_explicit_reference",
+    "p149-paragraph-2",
+    "accepted_cross_chapter_reference",
+)
 
 
 def score_retrieval(
@@ -57,6 +69,49 @@ def formula_matches(block: Block | None, requirement: Mapping[str, object]) -> b
     ).hexdigest() == expected
 
 
+def figure_matches(
+    figure: Block | None,
+    caption: Block | None,
+    requirement: Mapping[str, object],
+    build_root: Path,
+) -> bool:
+    if not (
+        figure is not None
+        and figure.type is BlockType.FIGURE
+        and caption is not None
+        and caption.type is BlockType.FIGURE_CAPTION
+        and any(
+            relation.type == "caption_of" and relation.target == figure.id
+            for relation in caption.relations
+        )
+    ):
+        return False
+    expected_sha = requirement.get("asset_sha256")
+    if expected_sha is None:
+        return True
+    if not isinstance(expected_sha, str) or not figure.asset_path:
+        return False
+    asset = build_root / figure.asset_path
+    try:
+        if not asset.resolve().is_relative_to(build_root.resolve()):
+            return False
+        return hashlib.sha256(asset.read_bytes()).hexdigest() == expected_sha
+    except OSError:
+        return False
+
+
+def content_is_complete(validation_issues: Sequence[Mapping[str, object]]) -> bool:
+    return all(
+        (
+            issue.get("code"),
+            issue.get("block_id"),
+            issue.get("disposition"),
+        )
+        == _ALLOWED_COMPLETENESS_ISSUE
+        for issue in validation_issues
+    )
+
+
 def evaluate_gates(
     *,
     page_hits: int,
@@ -67,6 +122,7 @@ def evaluate_gates(
     fabricated_ids: set[str],
     abstention_status: str,
     rubric: Mapping[str, object],
+    content_complete: bool = True,
 ) -> dict[str, bool]:
     return {
         "page_hits": page_hits >= int(rubric["minimum_page_hits"]),
@@ -78,6 +134,7 @@ def evaluate_gates(
         "figure_relations": bool(figure_checks) and all(figure_checks.values()),
         "no_fabricated_ids": not fabricated_ids,
         "abstention": abstention_status == "insufficient_evidence",
+        "content_completeness": content_complete,
     }
 
 
@@ -104,6 +161,21 @@ def validate_rubric(rubric: Mapping[str, object]) -> None:
     }
     if figures != _REQUIRED_FIGURES:
         raise ValueError("rubric required figures are fixed for chapter 5")
+    for item in rubric.get("required_figures", []):
+        if (
+            isinstance(item, dict)
+            and item.get("figure_id")
+            in _REQUIRED_FIGURES
+            - {
+                "p105-figure-5.2",
+                "p105-figure-5.3",
+                "p116-figure-5.9",
+            }
+            and not re.fullmatch(
+                r"[0-9a-f]{64}", str(item.get("asset_sha256", ""))
+            )
+        ):
+            raise ValueError("rubric enriched figures require asset SHA-256")
 
 
 def _validate_benchmark_artifacts(questions_bytes: bytes, rubric_bytes: bytes) -> None:
@@ -190,6 +262,7 @@ def evaluate_chapter(
     build_id, pages_path, validation_path, index_path = _active_artifacts(
         data_root, book_id
     )
+    build_root = pages_path.parent.parent
     pages = tuple(
         PageDocument.model_validate(page)
         for page in json.loads(pages_path.read_text(encoding="utf-8"))
@@ -256,16 +329,8 @@ def evaluate_chapter(
     for requirement in rubric["required_figures"]:
         figure = blocks.get(requirement["figure_id"])
         caption = blocks.get(requirement["caption_id"])
-        figure_checks[requirement["figure_id"]] = bool(
-            figure is not None
-            and figure.type is BlockType.FIGURE
-            and caption is not None
-            and caption.type is BlockType.FIGURE_CAPTION
-            and any(
-                relation.type == "caption_of"
-                and relation.target == requirement["figure_id"]
-                for relation in caption.relations
-            )
+        figure_checks[requirement["figure_id"]] = figure_matches(
+            figure, caption, requirement, build_root
         )
 
     abstention_results = retrieve(
@@ -294,6 +359,7 @@ def evaluate_chapter(
         fabricated_ids=fabricated_ids,
         abstention_status=abstention.status,
         rubric=rubric,
+        content_complete=content_is_complete(validation_issues),
     )
     return {
         "schema_version": 1,
@@ -313,7 +379,9 @@ def evaluate_chapter(
         ),
         "validation_issues": validation_issues,
         "content_completeness": (
-            "needs_visual_enrichment" if validation_issues else "complete"
+            "complete"
+            if content_is_complete(validation_issues)
+            else "needs_visual_enrichment"
         ),
         "active_build_id": build_id,
         "questions_sha256": hashlib.sha256(questions_bytes).hexdigest(),

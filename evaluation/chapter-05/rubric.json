@@ -12,7 +12,14 @@
   "required_figures": [
     {"figure_id":"p105-figure-5.2","caption_id":"p105-figure_caption-5.2"},
     {"figure_id":"p105-figure-5.3","caption_id":"p105-figure_caption-5.3"},
-    {"figure_id":"p116-figure-5.9","caption_id":"p116-figure_caption-5.9"}
+    {"figure_id":"p116-figure-5.9","caption_id":"p116-figure_caption-5.9"},
+    {"figure_id":"p112-figure-5.6","caption_id":"p112-figure_caption-5.6","asset_sha256":"92d4dd115730912729bcace1e7385f59e0a11a7781c8089251d1aee6dba56592"},
+    {"figure_id":"p126-figure-5.15","caption_id":"p126-figure_caption-5.15","asset_sha256":"d55ec2bf4b564e5bbb517778424cf26c5466c8d1ac8ada8d2b3c3ed1e6cdcc12"},
+    {"figure_id":"p126-figure-5.16","caption_id":"p126-figure_caption-5.16","asset_sha256":"44b8329a1728070dd59d4395a5ac0d0a3c0443371fb475d82a25e3763f41b0e1"},
+    {"figure_id":"p128-figure-5.18","caption_id":"p128-figure_caption-5.18","asset_sha256":"d4d8cb0d3bef406c5436d1b1c318f2817e1f94374a546588c91abccbb71a7e76"},
+    {"figure_id":"p130-figure-5.22","caption_id":"p130-figure_caption-5.22","asset_sha256":"265fc246f1c2ab6a2357b0a5661d1c5583c19d8f68ae793ac2539eeb28c22cda"},
+    {"figure_id":"p131-figure-5.23","caption_id":"p131-figure_caption-5.23","asset_sha256":"2e5a161da65562973df7f636ccae5176a921e65078c26640135dc0348d797e80"},
+    {"figure_id":"p153-figure-5.41","caption_id":"p153-figure_caption-5.41","asset_sha256":"9020a23ce3d7f22216f4de5b773855c5f8da111c176fb9cb6c7b317d65d39caa"}
   ],
   "abstention_query": "quantum entanglement black hole thermodynamics",
   "abstention_minimum_score": 0.8
