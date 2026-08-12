@@ -1,0 +1,64 @@
+{
+  "id": "chapter-05-section-5.2",
+  "chapter": 5,
+  "section": "5.2",
+  "title": "光源：从光照分解到方向光",
+  "sections": [
+    {
+      "level": "intuition",
+      "title": "直觉",
+      "body": "着色模型把外观拆成不受直接光影响的 unlit 部分，以及由光源驱动的 lit 部分。方向光进一步假设场景内各点看到的光照方向和颜色都相同。",
+      "citations": ["p106-heading-1", "p106-paragraph-5", "p109-paragraph-3"]
+    },
+    {
+      "level": "mathematics",
+      "title": "数学结构",
+      "body": "单光源时用光强或 RGB 光色缩放 lit 项；多光源时对各光源贡献求和。若考虑表面朝向，还要乘 max(dot(l,n),0)，从而让背光面不接收直接光。",
+      "citations": ["p107-formula-5.3", "p107-formula-5.5", "p108-formula-5.6"]
+    },
+    {
+      "level": "graphics_meaning",
+      "title": "图形学含义",
+      "body": "dot(l,n) 是入射方向与表面法线夹角的余弦。图 5.4 用平行光线解释：表面越倾斜，同样能量会铺到更大面积，单位面积收到的能量越少。",
+      "citations": ["p108-figure-5.4", "p108-formula-5.6"]
+    },
+    {
+      "level": "implementation",
+      "title": "实现映射",
+      "body": "方向光没有位置参数。Shader 中把光照方向和颜色作为常量或 uniform，归一化法线后计算 max(dot(n,l),0)，再把结果乘到表面颜色与光色上。",
+      "citations": ["p109-heading-1", "p109-paragraph-3", "p109-paragraph-1"]
+    },
+    {
+      "level": "example",
+      "title": "可运行示例",
+      "body": "示例程序化绘制球面。光方向在所有像素中保持不变，因此明暗只随球面法线变化；把代码粘贴到 ShaderToy 可直接观察。",
+      "citations": ["p108-formula-5.6", "p109-paragraph-3"]
+    },
+    {
+      "level": "pitfalls",
+      "title": "常见错误",
+      "body": "不要把光线传播方向与从表面指向光源的向量混淆；不要忘记归一化法线；不要把负点积直接乘入颜色，否则背光面会产生负颜色。",
+      "citations": ["p108-figure-5.4", "p108-formula-5.6"]
+    },
+    {
+      "level": "exercises",
+      "title": "练习",
+      "body": "旋转光照方向并预测明暗边界；比较是否 clamp 点积；把固定方向改成随像素位置变化的方向，观察它为何不再是方向光。",
+      "citations": ["p109-paragraph-1", "p109-paragraph-3"]
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "为什么方向光不需要位置参数？",
+      "expected_answer": "它用于近似距离场景足够远的光源，场景范围内光线方向和颜色可视为恒定。",
+      "citations": ["p109-paragraph-3"]
+    },
+    {
+      "prompt": "为什么要计算 max(dot(l,n),0)？",
+      "expected_answer": "正点积按余弦缩放直接光贡献；负点积代表光来自表面背后，应截断为零。",
+      "citations": ["p108-figure-5.4", "p108-formula-5.6"]
+    }
+  ],
+  "shader_example_id": "directional-light",
+  "shader_metadata_path": "examples/directional-light.json"
+}
