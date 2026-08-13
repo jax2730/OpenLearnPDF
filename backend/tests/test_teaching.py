@@ -9,6 +9,8 @@ from pydantic import ValidationError
 
 import rtr4_learning.teaching as teaching_module
 from rtr4_learning.teaching import (
+    KnowledgePoint,
+    LearningCard,
     Lesson,
     LessonSection,
     ShaderExample,
@@ -67,6 +69,74 @@ def test_lesson_sections_and_questions_require_citations() -> None:
             title="Why cool and warm colors",
             body="Surface orientation becomes visible through hue.",
             citations=(),
+        )
+
+
+def test_knowledge_points_and_cards_require_valid_citations() -> None:
+    with pytest.raises(ValidationError):
+        LearningCard(id="idea", kind="intuition", title="Idea", body="Body")
+
+    with pytest.raises(ValidationError):
+        KnowledgePoint(
+            id="light-vector",
+            title="Light vector",
+            summary="Direction and distance.",
+            primary_source_id="p109-formula-5.9",
+            citations=("p110-formula-5.10",),
+            cards=(
+                LearningCard(
+                    id="idea",
+                    kind="intuition",
+                    title="Idea",
+                    body="Body",
+                    citations=("p110-formula-5.10",),
+                ),
+            ),
+        )
+
+
+def test_lesson_rejects_duplicate_knowledge_point_and_card_ids() -> None:
+    card = LearningCard(
+        id="idea",
+        kind="intuition",
+        title="Idea",
+        body="Body",
+        citations=("p109-formula-5.9",),
+    )
+    with pytest.raises(ValidationError):
+        KnowledgePoint(
+            id="light-vector",
+            title="Light vector",
+            summary="Direction and distance.",
+            primary_source_id="p109-formula-5.9",
+            citations=("p109-formula-5.9",),
+            cards=(card, card),
+        )
+
+    point = KnowledgePoint(
+        id="light-vector",
+        title="Light vector",
+        summary="Direction and distance.",
+        primary_source_id="p109-formula-5.9",
+        citations=("p109-formula-5.9",),
+        cards=(card,),
+    )
+    with pytest.raises(ValidationError):
+        Lesson(
+            id="chapter-05-section-5.2.2",
+            chapter=5,
+            section="5.2.2",
+            title="Punctual lights",
+            sections=(
+                LessonSection(
+                    level="intuition",
+                    title="Idea",
+                    body="Body",
+                    citations=("p109-formula-5.9",),
+                ),
+            ),
+            shader_example_id="punctual-lights",
+            knowledge_points=(point, point),
         )
 
 
