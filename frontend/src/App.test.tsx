@@ -69,5 +69,10 @@ describe("App", () => {
     expect(screen.getByLabelText("当前课程")).toHaveTextContent("section-5.2");
     fireEvent.click(screen.getByRole("button", { name: "5.1 着色模型" }));
     expect(screen.getByLabelText("当前课程")).toHaveTextContent("section-5.1");
+
+    fireEvent.click(screen.getByRole("button", { name: "5.2.2 精确光源" }));
+    expect(screen.getByLabelText("当前课程")).toHaveTextContent(
+      "section-5.2.2",
+    );
   });
 });

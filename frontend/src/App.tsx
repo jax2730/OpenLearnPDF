@@ -33,6 +33,12 @@ export default function App() {
             <button type="button" onClick={() => setSectionSlug("section-5.2")}>
               5.2 光源
             </button>
+            <button
+              type="button"
+              onClick={() => setSectionSlug("section-5.2.2")}
+            >
+              5.2.2 精确光源
+            </button>
           </nav>
           <LessonPanel
             chapterSlug="chapter-05"
