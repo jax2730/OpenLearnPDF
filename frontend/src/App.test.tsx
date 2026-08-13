@@ -90,4 +90,20 @@ describe("App", () => {
       "p111-formula-5.11",
     );
   });
+
+  it("renders labelled source and study panes", () => {
+    render(<App />);
+
+    expect(screen.getByRole("region", { name: "原书 PDF" })).toHaveClass(
+      "workspace-pane",
+      "source-pane",
+    );
+    expect(screen.getByRole("region", { name: "知识点学习区" })).toHaveClass(
+      "workspace-pane",
+      "study-pane",
+    );
+    expect(screen.getByRole("navigation", { name: "第五章课程" })).toHaveClass(
+      "course-selector",
+    );
+  });
 });
