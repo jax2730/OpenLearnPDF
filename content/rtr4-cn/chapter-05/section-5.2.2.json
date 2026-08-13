@@ -59,6 +59,116 @@
       "citations": ["p113-figure-5.7", "p113-formula-5.18"]
     }
   ],
+  "knowledge_points": [
+    {
+      "id": "light-vector-distance",
+      "title": "从位置得到光向量与距离",
+      "summary": "一次向量相减同时提供方向和距离，是后续所有精确光源计算的入口。",
+      "primary_source_id": "p109-formula-5.9",
+      "citations": ["p109-formula-5.9", "p110-formula-5.10"],
+      "cards": [
+        {
+          "id": "vector-intuition",
+          "kind": "intuition",
+          "title": "先连起两个点",
+          "body": "从着色点 p 指向光源位置 p_light：d=p_light-p。d 的方向告诉 Shader 光从哪里来，d 的长度就是到光源的距离。",
+          "citations": ["p109-formula-5.9"]
+        },
+        {
+          "id": "vector-derivation",
+          "kind": "derivation",
+          "title": "分三步计算",
+          "body": "① d=p_light-p；② r=sqrt(dot(d,d))；③ l=d/r。不要先 normalize 再求距离，否则长度信息已经丢失。",
+          "citations": ["p110-formula-5.10"]
+        }
+      ]
+    },
+    {
+      "id": "inverse-square-falloff",
+      "title": "平方反比衰减",
+      "summary": "光能在两个空间维度扩散，距离翻倍时单位面积强度降为四分之一。",
+      "primary_source_id": "p111-formula-5.11",
+      "citations": ["p110-figure-5.5", "p111-formula-5.11"],
+      "cards": [
+        {
+          "id": "falloff-visual",
+          "kind": "visual",
+          "title": "看图理解二维扩散",
+          "body": "图 5.5 中射线间距随 r 在两个方向增长，因此覆盖面积与 r² 成正比，单位面积分到的能量与 1/r² 成正比。",
+          "citations": ["p110-figure-5.5"]
+        },
+        {
+          "id": "falloff-numeric",
+          "kind": "numeric_example",
+          "title": "数字例子",
+          "body": "若参考距离 r0=1 时强度为 1，则 r=2 时强度为 1/4，r=4 时为 1/16。距离只增大四倍，强度已经下降十六倍。",
+          "citations": ["p111-formula-5.11"]
+        }
+      ]
+    },
+    {
+      "id": "near-distance-stability",
+      "title": "处理光源附近的奇点",
+      "summary": "理想公式在 r 接近零时爆炸，实时渲染必须给它一个有意义的下限。",
+      "primary_source_id": "p111-formula-5.12",
+      "citations": ["p111-formula-5.12", "p111-formula-5.13"],
+      "cards": [
+        {
+          "id": "stability-pitfall",
+          "kind": "pitfall",
+          "title": "为什么不能直接除以 r²",
+          "body": "r 趋近 0 时亮度无界增长，r=0 还会除零。常见方案是在分母加入 epsilon，或把 r 限制到光源的物理半径 r_min。",
+          "citations": ["p111-formula-5.12", "p111-formula-5.13"]
+        }
+      ]
+    },
+    {
+      "id": "finite-light-range",
+      "title": "让光在有限范围平滑归零",
+      "summary": "物理衰减永远不为零；实时系统用窗函数获得可裁剪范围，同时避免硬边。",
+      "primary_source_id": "p111-formula-5.14",
+      "citations": ["p111-formula-5.14", "p112-figure-5.6"],
+      "cards": [
+        {
+          "id": "range-derivation",
+          "kind": "derivation",
+          "title": "窗函数做了什么",
+          "body": "先算 1-(r/r_max)^4，负值截为 0，再平方。它在 r_max 处让函数值和斜率平滑接近零，最后乘到平方反比项上。",
+          "citations": ["p111-formula-5.14", "p112-figure-5.6"]
+        },
+        {
+          "id": "range-code",
+          "kind": "code",
+          "title": "对应 GLSL",
+          "body": "inverseSquare=1/(r*r+epsilon)；window=max(1-pow(r/maxRange,4),0)；最终 attenuation=inverseSquare*window*window。",
+          "citations": ["p111-formula-5.12", "p111-formula-5.14"]
+        }
+      ]
+    },
+    {
+      "id": "spotlight-cone",
+      "title": "聚光灯的本影与半影",
+      "summary": "距离决定光有多强，圆锥角决定当前位置能接收多少聚光灯能量。",
+      "primary_source_id": "p113-formula-5.18",
+      "citations": ["p113-formula-5.17", "p113-figure-5.7", "p113-formula-5.18"],
+      "cards": [
+        {
+          "id": "cone-visual",
+          "kind": "visual",
+          "title": "内锥、过渡带与外锥",
+          "body": "半影角以内保持满强度，本影角以外为零，中间区域平滑过渡。计算时要比较灯的朝向与从光源指向表面的方向。",
+          "citations": ["p113-figure-5.7", "p113-formula-5.18"]
+        },
+        {
+          "id": "cone-exercise",
+          "kind": "exercise",
+          "title": "动手验证",
+          "body": "在 ShaderToy 中缩小内外角差，观察边缘变硬；交换两个角度，解释 smoothstep 输入为何失去正确含义。",
+          "citations": ["p113-formula-5.18"]
+        }
+      ]
+    }
+  ],
   "shader_example_id": "punctual-lights",
   "shader_metadata_path": "examples/punctual-lights.json"
 }

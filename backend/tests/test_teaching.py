@@ -291,6 +291,35 @@ def test_real_punctual_light_lesson_has_all_levels_and_valid_citations() -> None
     assert {"p111-formula-5.11", "p113-formula-5.18"}.issubset(
         shader.source_block_ids
     )
+    assert [point.id for point in lesson.knowledge_points] == [
+        "light-vector-distance",
+        "inverse-square-falloff",
+        "near-distance-stability",
+        "finite-light-range",
+        "spotlight-cone",
+    ]
+    assert {
+        "p109-formula-5.9",
+        "p111-formula-5.11",
+        "p111-formula-5.12",
+        "p111-formula-5.14",
+        "p113-formula-5.18",
+    }.issubset(
+        {point.primary_source_id for point in lesson.knowledge_points}
+    )
+    assert {
+        "intuition",
+        "derivation",
+        "visual",
+        "numeric_example",
+        "code",
+        "pitfall",
+        "exercise",
+    } == {
+        card.kind
+        for point in lesson.knowledge_points
+        for card in point.cards
+    }
 
 
 def test_shader_source_read_rejects_file_swapped_outside_content_root(
