@@ -48,6 +48,57 @@ const formulaBlock = {
   source: { parser: "mineru", version: "2", confidence: 0.99 },
 };
 
+const knowledgeBundle = {
+  ...lessonBundle,
+  lesson: {
+    ...lessonBundle.lesson,
+    id: "chapter-05-section-5.2.2",
+    section: "5.2.2",
+    knowledge_points: [
+      {
+        id: "vector",
+        title: "光向量",
+        summary: "方向与距离。",
+        primary_source_id: "p105-formula-5.1",
+        citations: ["p105-formula-5.1"],
+        cards: [
+          {
+            id: "idea",
+            kind: "intuition",
+            title: "向量",
+            body: "连接两点。",
+            citations: ["p105-formula-5.1"],
+          },
+        ],
+      },
+      {
+        id: "falloff",
+        title: "距离衰减",
+        summary: "平方反比。",
+        primary_source_id: "p111-formula-5.11",
+        citations: ["p111-formula-5.11"],
+        cards: [
+          {
+            id: "numbers",
+            kind: "numeric_example",
+            title: "数值",
+            body: "距离翻倍。",
+            citations: ["p111-formula-5.11"],
+          },
+        ],
+      },
+    ],
+  },
+};
+
+const falloffBlock = {
+  ...formulaBlock,
+  id: "p111-formula-5.11",
+  page: 111,
+  number: "5.11",
+  latex: "c(r)=c_0/r^2",
+};
+
 describe("LessonPanel", () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -102,5 +153,38 @@ describe("LessonPanel", () => {
     render(<Formula latex="\\notARealCommand{" label="错误公式" />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("公式渲染失败");
+  });
+
+  it("selects the knowledge point that cites the selected PDF block", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        const payload = url.startsWith("/api/lessons/")
+          ? knowledgeBundle
+          : url.includes("p111-formula-5.11")
+            ? falloffBlock
+            : formulaBlock;
+        return Promise.resolve({ ok: true, json: async () => payload });
+      }),
+    );
+    const view = render(
+      <LessonPanel
+        chapterSlug="chapter-05"
+        sectionSlug="section-5.2.2"
+        selectedBlockId="p105-formula-5.1"
+        onNavigateSource={() => undefined}
+      />,
+    );
+
+    expect(await screen.findByText("连接两点。")).toBeInTheDocument();
+    view.rerender(
+      <LessonPanel
+        chapterSlug="chapter-05"
+        sectionSlug="section-5.2.2"
+        selectedBlockId="p111-formula-5.11"
+        onNavigateSource={() => undefined}
+      />,
+    );
+    expect(await screen.findByText("距离翻倍。")).toBeInTheDocument();
   });
 });

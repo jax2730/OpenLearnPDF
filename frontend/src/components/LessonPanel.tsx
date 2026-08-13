@@ -9,6 +9,7 @@ import { SourceCitation } from "./SourceCitation";
 interface LessonPanelProps {
   chapterSlug: string;
   sectionSlug: string;
+  selectedBlockId?: string;
   onNavigateSource: (page: number, blockId: string) => void;
 }
 
@@ -23,6 +24,7 @@ function isHttps(url: string) {
 export function LessonPanel({
   chapterSlug,
   sectionSlug,
+  selectedBlockId,
   onNavigateSource,
 }: LessonPanelProps) {
   const [bundle, setBundle] = useState<LessonBundle>();
@@ -66,6 +68,14 @@ export function LessonPanel({
 
     return () => controller.abort();
   }, [chapterSlug, sectionSlug]);
+
+  useEffect(() => {
+    if (!selectedBlockId || !bundle?.lesson.knowledge_points?.length) return;
+    const matchingPoint = bundle.lesson.knowledge_points.find((point) =>
+      point.citations.includes(selectedBlockId),
+    );
+    if (matchingPoint) setActivePointId(matchingPoint.id);
+  }, [bundle, selectedBlockId]);
 
   if (error) return <p role="alert">课程加载失败：{error}</p>;
   if (!bundle) return <p>正在加载课程…</p>;

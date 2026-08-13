@@ -43,6 +43,7 @@ export default function App() {
           <LessonPanel
             chapterSlug="chapter-05"
             sectionSlug={sectionSlug}
+            selectedBlockId={selectedBlockId}
             onNavigateSource={navigateSource}
           />
           <QuestionPanel onNavigateSource={navigateSource} />
