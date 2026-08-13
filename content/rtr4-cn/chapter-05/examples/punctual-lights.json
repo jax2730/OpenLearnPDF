@@ -1,0 +1,20 @@
+{
+  "id": "punctual-lights",
+  "language": "glsl",
+  "stage": "fragment",
+  "source_path": "examples/punctual-lights.frag",
+  "browser_source_path": "examples/punctual-lights-shadertoy.frag",
+  "source_block_ids": [
+    "p109-formula-5.9",
+    "p110-figure-5.5",
+    "p111-formula-5.11",
+    "p111-formula-5.12",
+    "p111-formula-5.14",
+    "p113-formula-5.17",
+    "p113-formula-5.18",
+    "p114-figure-5.8"
+  ],
+  "expected_visual": "Two matte spheres: the left receives a finite-range point light; the right receives the same distance falloff constrained by a soft spotlight cone.",
+  "verification_command": "glslangValidator -S frag content/rtr4-cn/chapter-05/examples/punctual-lights.frag",
+  "external_references": ["https://www.shadertoy.com/new"]
+}

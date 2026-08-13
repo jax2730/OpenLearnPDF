@@ -1,0 +1,64 @@
+{
+  "id": "chapter-05-section-5.2.2",
+  "chapter": 5,
+  "section": "5.2.2",
+  "title": "精确光源：位置、距离衰减与聚光锥",
+  "sections": [
+    {
+      "level": "intuition",
+      "title": "直觉",
+      "body": "精确光源拥有位置但没有面积。点光源向所有方向发光；聚光灯再用方向函数把光限制在圆锥内。两者都先从着色点指向光源，再根据距离和方向削弱光强。",
+      "citations": ["p109-heading-2", "p109-paragraph-5", "p113-heading-1"]
+    },
+    {
+      "level": "mathematics",
+      "title": "数学结构",
+      "body": "令 d=p_light-p，距离 r=length(d)，单位光向量 l=d/r。理想点光源按 1/r² 衰减；聚光灯把距离函数与方向函数相乘。",
+      "citations": ["p109-formula-5.9", "p110-formula-5.10", "p111-formula-5.11", "p113-formula-5.17"]
+    },
+    {
+      "level": "graphics_meaning",
+      "title": "图形学含义",
+      "body": "光离点源越远会在两个维度扩散，所以单位面积能量按距离平方下降。聚光灯的本影角确定零强度边界，半影角定义满强度内锥，两者之间平滑过渡。",
+      "citations": ["p110-figure-5.5", "p113-figure-5.7", "p114-figure-5.8"]
+    },
+    {
+      "level": "implementation",
+      "title": "实现映射",
+      "body": "实际 Shader 要稳定近距离奇点，并在有限半径平滑归零。示例使用 r²+epsilon 稳定分母，用四次窗函数限制范围，再用 smoothstep 构造聚光锥。",
+      "citations": ["p111-formula-5.12", "p111-formula-5.14", "p112-figure-5.6", "p113-formula-5.18"]
+    },
+    {
+      "level": "example",
+      "title": "可运行示例",
+      "body": "示例左侧球体只使用点光源的距离衰减；右侧球体在同样的距离衰减上叠加聚光灯方向衰减。移动鼠标可改变光源位置。",
+      "citations": ["p111-formula-5.11", "p113-formula-5.17", "p114-figure-5.8"]
+    },
+    {
+      "level": "pitfalls",
+      "title": "常见错误",
+      "body": "不要在 r=0 直接计算 1/r²；不要硬截断最大半径，否则边界会跳变；聚光灯计算需要使用从光源向表面的方向，即着色所用 l 的反方向。",
+      "citations": ["p111-formula-5.12", "p111-formula-5.13", "p111-formula-5.14", "p113-formula-5.18"]
+    },
+    {
+      "level": "exercises",
+      "title": "练习",
+      "body": "比较 epsilon 与最小半径两种奇点处理；调节最大范围观察窗函数；交换本影角和半影角并解释错误；关闭方向衰减把聚光灯还原为点光源。",
+      "citations": ["p111-formula-5.12", "p111-formula-5.13", "p111-formula-5.14", "p113-formula-5.18"]
+    }
+  ],
+  "questions": [
+    {
+      "prompt": "点光源为什么按平方反比衰减？",
+      "expected_answer": "光线间距随距离在两个维度同时增长，因此单位面积接收的能量与距离平方成反比。",
+      "citations": ["p110-figure-5.5", "p111-formula-5.11"]
+    },
+    {
+      "prompt": "聚光灯为什么需要半影角？",
+      "expected_answer": "半影角与本影角共同定义平滑过渡区，避免圆锥边缘出现硬截断。",
+      "citations": ["p113-figure-5.7", "p113-formula-5.18"]
+    }
+  ],
+  "shader_example_id": "punctual-lights",
+  "shader_metadata_path": "examples/punctual-lights.json"
+}

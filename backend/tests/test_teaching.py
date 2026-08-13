@@ -20,6 +20,9 @@ from rtr4_learning.teaching import (
 REPO_ROOT = Path(__file__).parents[2]
 LESSON_PATH = REPO_ROOT / "content/rtr4-cn/chapter-05/section-5.1.json"
 LIGHT_LESSON_PATH = REPO_ROOT / "content/rtr4-cn/chapter-05/section-5.2.json"
+PUNCTUAL_LESSON_PATH = (
+    REPO_ROOT / "content/rtr4-cn/chapter-05/section-5.2.2.json"
+)
 KNOWN_BLOCK_IDS = {
     "p105-figure-5.3",
     "p105-formula-5.1",
@@ -36,6 +39,24 @@ LIGHT_BLOCK_IDS = {
     "p109-paragraph-1",
     "p109-heading-1",
     "p109-paragraph-3",
+}
+PUNCTUAL_BLOCK_IDS = {
+    "p109-heading-2",
+    "p109-paragraph-5",
+    "p109-formula-5.9",
+    "p110-formula-5.10",
+    "p110-heading-1",
+    "p110-figure-5.5",
+    "p111-formula-5.11",
+    "p111-formula-5.12",
+    "p111-formula-5.13",
+    "p111-formula-5.14",
+    "p112-figure-5.6",
+    "p113-heading-1",
+    "p113-formula-5.17",
+    "p113-figure-5.7",
+    "p113-formula-5.18",
+    "p114-figure-5.8",
 }
 
 
@@ -180,6 +201,26 @@ def test_real_directional_light_lesson_has_all_levels_and_valid_citations() -> N
     }
     assert shader.id == "directional-light"
     assert "p109-paragraph-3" in shader.source_block_ids
+
+
+def test_real_punctual_light_lesson_has_all_levels_and_valid_citations() -> None:
+    lesson, shader = load_lesson_bundle(PUNCTUAL_LESSON_PATH)
+
+    validate_lesson_bundle(lesson, shader, PUNCTUAL_BLOCK_IDS)
+    assert lesson.section == "5.2.2"
+    assert {section.level for section in lesson.sections} == {
+        "intuition",
+        "mathematics",
+        "graphics_meaning",
+        "implementation",
+        "example",
+        "pitfalls",
+        "exercises",
+    }
+    assert shader.id == "punctual-lights"
+    assert {"p111-formula-5.11", "p113-formula-5.18"}.issubset(
+        shader.source_block_ids
+    )
 
 
 def test_shader_source_read_rejects_file_swapped_outside_content_root(
