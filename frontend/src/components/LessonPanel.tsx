@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getBlock, getLesson } from "../api";
 import type { LessonBundle, SourceBlock } from "../types";
 import { Formula } from "./Formula";
+import { KnowledgeLessonPanel } from "./KnowledgeLessonPanel";
 import { SourceCitation } from "./SourceCitation";
 
 interface LessonPanelProps {
@@ -27,6 +28,7 @@ export function LessonPanel({
   const [bundle, setBundle] = useState<LessonBundle>();
   const [blocks, setBlocks] = useState<Map<string, SourceBlock>>(new Map());
   const [error, setError] = useState<string>();
+  const [activePointId, setActivePointId] = useState<string>();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -38,7 +40,13 @@ export function LessonPanel({
       .then(async (lessonBundle) => {
         const citationIds = [
           ...new Set(
-            lessonBundle.lesson.sections.flatMap((section) => section.citations),
+            [
+              ...lessonBundle.lesson.sections.flatMap((section) => section.citations),
+              ...(lessonBundle.lesson.knowledge_points ?? []).flatMap((point) => [
+                ...point.citations,
+                ...point.cards.flatMap((card) => card.citations),
+              ]),
+            ],
           ),
         ];
         const citedBlocks = await Promise.all(
@@ -47,6 +55,7 @@ export function LessonPanel({
         if (!controller.signal.aborted) {
           setBundle(lessonBundle);
           setBlocks(new Map(citedBlocks.map((block) => [block.id, block])));
+          setActivePointId(lessonBundle.lesson.knowledge_points?.[0]?.id);
         }
       })
       .catch((reason: unknown) => {
@@ -60,6 +69,25 @@ export function LessonPanel({
 
   if (error) return <p role="alert">课程加载失败：{error}</p>;
   if (!bundle) return <p>正在加载课程…</p>;
+
+  if (bundle.lesson.knowledge_points?.length && activePointId) {
+    return (
+      <article aria-label={`课程 ${bundle.lesson.section}`}>
+        <h2>{bundle.lesson.title}</h2>
+        <KnowledgeLessonPanel
+          lessonId={bundle.lesson.id}
+          points={bundle.lesson.knowledge_points}
+          blocks={blocks}
+          activePointId={activePointId}
+          onSelectPoint={(pointId, page, blockId) => {
+            setActivePointId(pointId);
+            onNavigateSource(page, blockId);
+          }}
+          onNavigateSource={onNavigateSource}
+        />
+      </article>
+    );
+  }
 
   return (
     <article aria-label={`课程 ${bundle.lesson.section}`}>
