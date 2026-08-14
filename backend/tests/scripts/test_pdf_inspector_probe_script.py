@@ -85,3 +85,9 @@ def test_script_uses_safe_process_launch_and_process_tree_memory_sampling() -> N
     assert "Get-CimInstance Win32_Process" in source
     assert "WorkingSetSize" in source
     assert "peak_working_set_mb" in source
+
+
+def test_missing_package_probe_does_not_emit_an_expected_traceback() -> None:
+    source = PROBE_SCRIPT.read_text(encoding="utf-8")
+
+    assert "importlib.util.find_spec('pdf_inspector')" in source

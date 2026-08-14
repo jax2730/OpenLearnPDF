@@ -106,7 +106,7 @@ if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
     if ($LASTEXITCODE -ne 0) { throw 'Failed to create pdf-inspector virtual environment.' }
 }
 
-$installedVersion = & $venvPython -c "import importlib.metadata; print(importlib.metadata.version('pdf-inspector'))" 2>$null
+[string]$installedVersion = & $venvPython -c "import importlib.metadata, importlib.util; print(importlib.metadata.version('pdf-inspector') if importlib.util.find_spec('pdf_inspector') else '')"
 if ($LASTEXITCODE -ne 0 -or $installedVersion.Trim() -ne '1.14.1') {
     & $venvPython -m pip install --disable-pip-version-check $Requirement
     if ($LASTEXITCODE -ne 0) { throw 'Failed to install pinned pdf-inspector package.' }
