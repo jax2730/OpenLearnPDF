@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
+import importlib
+import json
 import math
+import os
+import shutil
+import tempfile
+import time
 from collections.abc import Iterable, Mapping, Sequence
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 
@@ -127,3 +136,193 @@ def build_probe_report(
         "pages": page_reports,
         "recommendation": recommendation,
     }
+
+
+def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    """Hash a source file without copying it into probe output."""
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def load_pdf_inspector() -> object:
+    """Load the optional native dependency with an actionable error."""
+    try:
+        return importlib.import_module("pdf_inspector")
+    except ModuleNotFoundError as error:
+        raise RuntimeError(
+            "pdf-inspector is not installed; run scripts/probe-pdf-inspector.ps1"
+        ) from error
+
+
+def _classification_dict(classification: object) -> dict[str, object]:
+    return {
+        name: _value(classification, name, default)
+        for name, default in (
+            ("pdf_type", "unknown"),
+            ("confidence", 0.0),
+            ("page_count", 0),
+            ("processing_time_ms", None),
+            ("pages_needing_ocr", []),
+            ("ocr_reasons_by_page", []),
+            ("title", None),
+            ("is_complex_layout", False),
+            ("pages_with_tables", []),
+            ("pages_with_columns", []),
+            ("has_encoding_issues", False),
+        )
+    }
+
+
+def _item_dict(item: object) -> dict[str, object]:
+    return {
+        name: _value(item, name, default)
+        for name, default in (
+            ("text", ""),
+            ("x", 0.0),
+            ("y", 0.0),
+            ("width", 0.0),
+            ("height", 0.0),
+            ("font", ""),
+            ("font_size", 0.0),
+            ("page", 0),
+            ("is_bold", False),
+            ("is_italic", False),
+            ("is_underline", False),
+            ("is_strikeout", False),
+            ("item_type", "text"),
+            ("mcid", None),
+        )
+    }
+
+
+def _page_artifacts(
+    page_markdown: Sequence[object], positioned_items: Sequence[object]
+) -> list[dict[str, object]]:
+    items_by_page: dict[int, list[dict[str, object]]] = {}
+    for item in positioned_items:
+        page = int(_value(item, "page", 0))
+        items_by_page.setdefault(page, []).append(_item_dict(item))
+    return [
+        {
+            "page": int(_value(page, "page")) + 1,
+            "markdown": str(_value(page, "markdown", "")),
+            "needs_ocr": bool(_value(page, "needs_ocr", False)),
+            "ocr_reason": _value(page, "ocr_reason"),
+            "positioned_items": items_by_page.get(
+                int(_value(page, "page")) + 1, []
+            ),
+        }
+        for page in page_markdown
+    ]
+
+
+def _json_default(value: object) -> object:
+    if isinstance(value, Path):
+        return str(value)
+    if hasattr(value, "page") and hasattr(value, "reasons"):
+        return {"page": value.page, "reasons": list(value.reasons)}
+    raise TypeError(f"cannot serialize {type(value).__name__}")
+
+
+def _write_json(path: Path, value: object) -> None:
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2, default=_json_default) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _report_markdown(report: Mapping[str, object]) -> str:
+    rows = [
+        "# PDF Inspector RTR4 Probe",
+        "",
+        f"- Recommendation: `{report['recommendation']}`",
+        f"- PDF type: `{report['pdf_type']}`",
+        f"- Confidence: `{report['confidence']}`",
+        "- Formula semantics: unsupported",
+        "- Image understanding: unsupported",
+        "",
+        "| Page | Route | OCR | Missing anchors | Invalid geometry |",
+        "|---:|---|---|---|---:|",
+    ]
+    for page in report["pages"]:  # type: ignore[union-attr]
+        missing = ", ".join(page["missing_anchors"]) or "-"
+        rows.append(
+            f"| {page['page']} | {page['route']} | {page['needs_ocr']} | "
+            f"{missing} | {page['invalid_geometry_count']} |"
+        )
+    return "\n".join(rows) + "\n"
+
+
+def run_probe(
+    *,
+    source_path: Path | str,
+    output_dir: Path | str,
+    requested_pages: Iterable[int],
+    expected_anchors: Mapping[int, Sequence[str]],
+    pdf_inspector: object | None = None,
+) -> dict[str, object]:
+    """Run selected-page extraction and atomically publish probe evidence."""
+    source = Path(source_path).resolve()
+    output = Path(output_dir).resolve()
+    if not source.is_file():
+        raise FileNotFoundError(f"source PDF not found: {source}")
+    with source.open("rb") as stream:
+        if stream.read(5) != b"%PDF-":
+            raise ValueError(f"source does not have a PDF header: {source}")
+    if output.exists():
+        raise FileExistsError(f"probe output already exists: {output}")
+
+    one_based_pages = tuple(page + 1 for page in to_zero_based_pages(requested_pages))
+    zero_based_pages = list(to_zero_based_pages(one_based_pages))
+    native = pdf_inspector or load_pdf_inspector()
+    started_at = datetime.now(UTC)
+    stopwatch = time.perf_counter()
+    classification = native.detect_pdf(str(source))
+    page_result = native.extract_pages_markdown(
+        str(source), pages=zero_based_pages
+    )
+    page_markdown = list(_value(page_result, "pages", []))
+    positioned_items = list(
+        native.extract_text_with_positions(str(source), pages=list(one_based_pages))
+    )
+    elapsed_ms = round((time.perf_counter() - stopwatch) * 1000, 3)
+    report = build_probe_report(
+        requested_pages=one_based_pages,
+        classification=classification,
+        page_markdown=page_markdown,
+        positioned_items=positioned_items,
+        expected_anchors=expected_anchors,
+    )
+    report["elapsed_ms"] = elapsed_ms
+
+    classification_data = _classification_dict(classification)
+    pages_data = _page_artifacts(page_markdown, positioned_items)
+    package_version = str(_value(native, "__version__", "unknown"))
+    run_data = {
+        "source_path": str(source),
+        "source_sha256": sha256_file(source),
+        "requested_pages": list(one_based_pages),
+        "pdf_inspector_version": package_version,
+        "started_at": started_at.isoformat(),
+        "finished_at": datetime.now(UTC).isoformat(),
+        "elapsed_ms": elapsed_ms,
+    }
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(tempfile.mkdtemp(prefix=".pdf-inspector-", dir=output.parent))
+    try:
+        _write_json(temporary / "classification.json", classification_data)
+        _write_json(temporary / "pages.json", pages_data)
+        _write_json(temporary / "report.json", report)
+        (temporary / "report.md").write_text(
+            _report_markdown(report), encoding="utf-8"
+        )
+        _write_json(temporary / "run.json", run_data)
+        os.replace(temporary, output)
+    except BaseException:
+        shutil.rmtree(temporary, ignore_errors=True)
+        raise
+    return report
