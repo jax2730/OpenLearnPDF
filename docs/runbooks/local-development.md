@@ -151,8 +151,8 @@ Git.
 The 2026-08-14 RTR4 run on the 203,743,189-byte source produced:
 
 - PDF classification: `text_based`, confidence `1.0`;
-- selected-page elapsed time: 14.54 seconds;
-- peak process-tree working set: 701.3 MB;
+- selected-page elapsed time: 13.26 seconds;
+- peak process-tree working set: 701.5 MB;
 - usable Chinese prose and heading extraction on pages 109, 111, and 113;
 - flattened and structurally incorrect representations for formulas 5.11 and
   5.18;
