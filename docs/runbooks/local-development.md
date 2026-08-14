@@ -117,3 +117,48 @@ The report is written to `evaluation/chapter-05/report.md`. The seven reviewed
 figure crops are generated inside the immutable build. Only the explicit
 Figure 6.27 cross-chapter reference may remain as a non-blocking validation
 disposition; any in-chapter missing visual fails completeness.
+
+## 7. Probe native text extraction with pdf-inspector
+
+`pdf-inspector` is an optional preflight and native-text candidate. It does not
+replace MinerU for formulas, figures, scanned pages, or unreliable CJK text.
+The browser WASM package is not used because it would require loading the large
+PDF into browser memory.
+
+Inspect the plan without creating an environment or cache:
+
+```powershell
+cd I:\pdf_reaserch\.worktrees\rtr4-learning
+.\scripts\probe-pdf-inspector.ps1 `
+  -WorkspaceRoot I:\pdf_reaserch `
+  -DryRun
+```
+
+Run the selected RTR4 5.2.2 evidence pages:
+
+```powershell
+.\scripts\probe-pdf-inspector.ps1 `
+  -WorkspaceRoot I:\pdf_reaserch `
+  -Pages 109,111,113
+```
+
+The script pins `pdf-inspector==1.14.1` in
+`I:\pdf_reaserch\.venv-pdf-inspector`, redirects pip and temporary caches to
+`I:\pdf_reaserch\.cache\pdf-inspector`, and writes immutable evidence below
+`I:\pdf_reaserch\data\probes\pdf-inspector`. All locations are excluded from
+Git.
+
+The 2026-08-14 RTR4 run on the 203,743,189-byte source produced:
+
+- PDF classification: `text_based`, confidence `1.0`;
+- selected-page elapsed time: 14.54 seconds;
+- peak process-tree working set: 701.3 MB;
+- usable Chinese prose and heading extraction on pages 109, 111, and 113;
+- flattened and structurally incorrect representations for formulas 5.11 and
+  5.18;
+- one image placeholder on page 113, without image semantics or extracted
+  pixels.
+
+Decision: retain `pdf-inspector` as an OCR-routing preflight and possible plain
+native-text fast path. Keep MinerU plus reviewed corrections as the teaching
+source for formulas and figures. Do not promote it to the default RTR4 parser.
