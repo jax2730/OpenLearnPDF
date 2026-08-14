@@ -8,6 +8,7 @@ import pytest
 from rtr4_learning.pdf_inspector_probe import (
     build_probe_report,
     load_pdf_inspector,
+    package_version,
     run_probe,
     sha256_file,
     to_zero_based_pages,
@@ -236,3 +237,11 @@ def test_missing_native_package_has_actionable_error(monkeypatch: pytest.MonkeyP
 
     with pytest.raises(RuntimeError, match="probe-pdf-inspector.ps1"):
         load_pdf_inspector()
+
+
+def test_package_version_falls_back_to_distribution_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("importlib.metadata.version", lambda name: "1.14.1")
+
+    assert package_version(SimpleNamespace()) == "1.14.1"

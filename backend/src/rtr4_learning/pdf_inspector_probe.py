@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import importlib.metadata
 import json
 import math
 import os
@@ -157,6 +158,17 @@ def load_pdf_inspector() -> object:
         ) from error
 
 
+def package_version(pdf_inspector: object) -> str:
+    """Return module version, falling back to installed distribution metadata."""
+    module_version = str(_value(pdf_inspector, "__version__", "")).strip()
+    if module_version:
+        return module_version
+    try:
+        return importlib.metadata.version("pdf-inspector")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+
 def _classification_dict(classification: object) -> dict[str, object]:
     return {
         name: _value(classification, name, default)
@@ -300,12 +312,12 @@ def run_probe(
 
     classification_data = _classification_dict(classification)
     pages_data = _page_artifacts(page_markdown, positioned_items)
-    package_version = str(_value(native, "__version__", "unknown"))
+    installed_version = package_version(native)
     run_data = {
         "source_path": str(source),
         "source_sha256": sha256_file(source),
         "requested_pages": list(one_based_pages),
-        "pdf_inspector_version": package_version,
+        "pdf_inspector_version": installed_version,
         "started_at": started_at.isoformat(),
         "finished_at": datetime.now(UTC).isoformat(),
         "elapsed_ms": elapsed_ms,
