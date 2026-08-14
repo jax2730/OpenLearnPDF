@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +13,7 @@ from rtr4_learning.pdf_inspector_probe import (
     run_probe,
     sha256_file,
     to_zero_based_pages,
+    validate_output_destination,
 )
 
 
@@ -134,6 +136,49 @@ def test_report_requires_every_requested_page() -> None:
         )
 
 
+def test_report_routes_page_without_positioned_items_to_mineru() -> None:
+    report = build_probe_report(
+        requested_pages=(109,),
+        classification=_classification(),
+        page_markdown=[_page(109, "精确光源 5.9")],
+        positioned_items=[],
+        expected_anchors={109: ("精确光源", "5.9")},
+    )
+
+    assert report["recommendation"] == "routing_preflight_only"
+    assert report["pages"][0]["route"] == "mineru"
+    assert report["pages"][0]["quality_reasons"] == [
+        "missing_positioned_items"
+    ]
+
+
+def test_report_rejects_replacement_character_corruption_even_with_anchors() -> None:
+    report = build_probe_report(
+        requested_pages=(109,),
+        classification=_classification(),
+        page_markdown=[_page(109, "精确光源 5.9 " + "�" * 20)],
+        positioned_items=[_item(109, "精确光源 5.9")],
+        expected_anchors={109: ("精确光源", "5.9")},
+    )
+
+    assert report["recommendation"] == "reject_cjk_quality"
+    assert report["pages"][0]["replacement_character_count"] == 20
+    assert "replacement_characters" in report["pages"][0]["quality_reasons"]
+
+
+def test_report_routes_empty_markdown_to_mineru() -> None:
+    report = build_probe_report(
+        requested_pages=(109,),
+        classification=_classification(),
+        page_markdown=[_page(109, "   ")],
+        positioned_items=[_item(109, "")],
+        expected_anchors={},
+    )
+
+    assert report["pages"][0]["route"] == "mineru"
+    assert report["pages"][0]["quality_reasons"] == ["empty_text"]
+
+
 class _FakePdfInspector:
     __version__ = "1.14.1"
 
@@ -201,6 +246,9 @@ def test_run_probe_writes_immutable_utf8_artifacts(tmp_path: Path) -> None:
     assert "native_text_candidate" in (output / "report.md").read_text(
         encoding="utf-8"
     )
+    run_data = json.loads((output / "run.json").read_text(encoding="utf-8"))
+    assert "extraction_finished_at" in run_data
+    assert "finished_at" not in run_data
 
     with pytest.raises(FileExistsError, match="already exists"):
         run_probe(
@@ -245,3 +293,19 @@ def test_package_version_falls_back_to_distribution_metadata(
     monkeypatch.setattr("importlib.metadata.version", lambda name: "1.14.1")
 
     assert package_version(SimpleNamespace()) == "1.14.1"
+
+
+def test_output_destination_must_be_outside_repo_and_off_c_drive(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    with pytest.raises(ValueError, match="repository"):
+        validate_output_destination(repo_root / "data" / "probe", repo_root)
+    with pytest.raises(ValueError, match="C drive"):
+        validate_output_destination(tmp_path / "probe", repo_root)
+
+    allowed = validate_output_destination(
+        Path("I:/pdf_reaserch/data/probes/pdf-inspector/run"), repo_root
+    )
+    assert allowed.drive == "I:"

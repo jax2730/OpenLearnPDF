@@ -10,7 +10,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "backend" / "src"))
 
-from rtr4_learning.pdf_inspector_probe import run_probe
+from rtr4_learning.pdf_inspector_probe import run_probe, validate_output_destination
 
 DEFAULT_ANCHORS = {
     109: ("精确光源", "5.9"),
@@ -31,9 +31,10 @@ def main() -> int:
     args = _parser().parse_args()
     requested_pages = tuple(args.pages)
     anchors = {page: DEFAULT_ANCHORS.get(page, ()) for page in requested_pages}
+    output = validate_output_destination(args.output, REPO_ROOT)
     report = run_probe(
         source_path=args.pdf,
-        output_dir=args.output,
+        output_dir=output,
         requested_pages=requested_pages,
         expected_anchors=anchors,
     )

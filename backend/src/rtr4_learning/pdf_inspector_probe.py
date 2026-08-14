@@ -47,6 +47,19 @@ def _invalid_geometry(item: object) -> bool:
     )
 
 
+def validate_output_destination(
+    output_dir: Path | str, repo_root: Path | str
+) -> Path:
+    """Require generated probe evidence outside Git and outside the C drive."""
+    output = Path(output_dir).resolve()
+    repository = Path(repo_root).resolve()
+    if output.drive.casefold() == "c:":
+        raise ValueError("probe output must not be written to the C drive")
+    if output == repository or output.is_relative_to(repository):
+        raise ValueError("probe output must be outside the repository")
+    return output
+
+
 def build_probe_report(
     *,
     requested_pages: Iterable[int],
@@ -79,10 +92,11 @@ def build_probe_report(
         page_items = items_by_page[page_number]
         searchable = "\n".join(
             [markdown, *(str(_value(item, "text", "")) for item in page_items)]
-        ).casefold()
+        )
+        searchable_folded = searchable.casefold()
         anchors = tuple(expected_anchors.get(page_number, ()))
         missing_anchors = [
-            anchor for anchor in anchors if anchor.casefold() not in searchable
+            anchor for anchor in anchors if anchor.casefold() not in searchable_folded
         ]
         invalid_geometry_count = sum(_invalid_geometry(item) for item in page_items)
         image_placeholder_count = sum(
@@ -93,17 +107,41 @@ def build_probe_report(
         needs_ocr = bool(_value(markdown_page, "needs_ocr", False)) or (
             page_number in classified_ocr_pages
         )
+        replacement_character_count = searchable.count("\ufffd")
+        searchable_character_count = len(searchable.strip())
+        replacement_character_ratio = (
+            replacement_character_count / searchable_character_count
+            if searchable_character_count
+            else 0.0
+        )
+        quality_reasons: list[str] = []
+        if not markdown.strip():
+            quality_reasons.append("empty_text")
+        if not page_items and not needs_ocr:
+            quality_reasons.append("missing_positioned_items")
+        if replacement_character_count:
+            quality_reasons.append("replacement_characters")
+        if invalid_geometry_count:
+            quality_reasons.append("invalid_geometry")
+        if missing_anchors:
+            quality_reasons.append("missing_anchors")
+        route_to_mineru = needs_ocr or bool(quality_reasons)
         page_reports.append(
             {
                 "page": page_number,
-                "route": "mineru" if needs_ocr else "native_text",
+                "route": "mineru" if route_to_mineru else "native_text",
                 "needs_ocr": needs_ocr,
                 "ocr_reason": _value(markdown_page, "ocr_reason"),
                 "markdown_chars": len(markdown),
                 "positioned_item_count": len(page_items),
                 "image_placeholder_count": image_placeholder_count,
                 "invalid_geometry_count": invalid_geometry_count,
+                "replacement_character_count": replacement_character_count,
+                "replacement_character_ratio": round(
+                    replacement_character_ratio, 6
+                ),
                 "missing_anchors": missing_anchors,
+                "quality_reasons": quality_reasons,
             }
         )
 
@@ -113,11 +151,12 @@ def build_probe_report(
     has_invalid_geometry = any(
         page["invalid_geometry_count"] for page in page_reports
     )
-    if has_encoding_issues or has_invalid_geometry:
+    has_replacement_characters = any(
+        page["replacement_character_count"] for page in page_reports
+    )
+    if has_encoding_issues or has_invalid_geometry or has_replacement_characters:
         recommendation = "reject_cjk_quality"
-    elif any(
-        page["needs_ocr"] or page["missing_anchors"] for page in page_reports
-    ):
+    elif any(page["route"] == "mineru" for page in page_reports):
         recommendation = "routing_preflight_only"
     else:
         recommendation = "native_text_candidate"
@@ -319,7 +358,7 @@ def run_probe(
         "requested_pages": list(one_based_pages),
         "pdf_inspector_version": installed_version,
         "started_at": started_at.isoformat(),
-        "finished_at": datetime.now(UTC).isoformat(),
+        "extraction_finished_at": datetime.now(UTC).isoformat(),
         "elapsed_ms": elapsed_ms,
     }
 
