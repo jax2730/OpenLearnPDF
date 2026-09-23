@@ -35,6 +35,14 @@ _BUILD_ID = re.compile(r"^[0-9a-f]{64}$")
 _LOGGER = logging.getLogger(__name__)
 
 
+def _content_signature(metadata: os.stat_result) -> tuple[int, ...]:
+    """Reading can update atime; only identity/content changes invalidate a PDF."""
+    return (
+        metadata.st_dev, metadata.st_ino, metadata.st_size,
+        metadata.st_mtime_ns, metadata.st_ctime_ns,
+    )
+
+
 class QuestionRequestModel(ContractModel):
     question: Annotated[str, Field(min_length=1, max_length=512)]
     chapter: PositiveInt
@@ -288,11 +296,7 @@ def create_app(settings: Settings) -> FastAPI:
             metadata = os.fstat(source.fileno())
             signature = (
                 str(resolved),
-                metadata.st_dev,
-                metadata.st_ino,
-                metadata.st_size,
-                metadata.st_mtime_ns,
-                metadata.st_ctime_ns,
+                *_content_signature(metadata),
                 manifest.source_sha256,
             )
             with verified_sources_lock:
@@ -302,7 +306,7 @@ def create_app(settings: Settings) -> FastAPI:
                 digest = hashlib.sha256()
                 for chunk in iter(lambda: source.read(1024 * 1024), b""):
                     digest.update(chunk)
-                if os.fstat(source.fileno()) != metadata:
+                if _content_signature(os.fstat(source.fileno())) != _content_signature(metadata):
                     raise HTTPException(
                         status_code=409, detail="registered source changed during verification"
                     )

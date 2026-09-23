@@ -9,6 +9,8 @@ from pydantic import ValidationError
 
 import rtr4_learning.teaching as teaching_module
 from rtr4_learning.teaching import (
+    KnowledgePoint,
+    LearningCard,
     Lesson,
     LessonSection,
     ShaderExample,
@@ -20,6 +22,9 @@ from rtr4_learning.teaching import (
 REPO_ROOT = Path(__file__).parents[2]
 LESSON_PATH = REPO_ROOT / "content/rtr4-cn/chapter-05/section-5.1.json"
 LIGHT_LESSON_PATH = REPO_ROOT / "content/rtr4-cn/chapter-05/section-5.2.json"
+PUNCTUAL_LESSON_PATH = (
+    REPO_ROOT / "content/rtr4-cn/chapter-05/section-5.2.2.json"
+)
 KNOWN_BLOCK_IDS = {
     "p105-figure-5.3",
     "p105-formula-5.1",
@@ -37,6 +42,24 @@ LIGHT_BLOCK_IDS = {
     "p109-heading-1",
     "p109-paragraph-3",
 }
+PUNCTUAL_BLOCK_IDS = {
+    "p109-heading-2",
+    "p109-paragraph-5",
+    "p109-formula-5.9",
+    "p110-formula-5.10",
+    "p110-heading-1",
+    "p110-figure-5.5",
+    "p111-formula-5.11",
+    "p111-formula-5.12",
+    "p111-formula-5.13",
+    "p111-formula-5.14",
+    "p112-figure-5.6",
+    "p113-heading-1",
+    "p113-formula-5.17",
+    "p113-figure-5.7",
+    "p113-formula-5.18",
+    "p114-figure-5.8",
+}
 
 
 def test_lesson_sections_and_questions_require_citations() -> None:
@@ -46,6 +69,74 @@ def test_lesson_sections_and_questions_require_citations() -> None:
             title="Why cool and warm colors",
             body="Surface orientation becomes visible through hue.",
             citations=(),
+        )
+
+
+def test_knowledge_points_and_cards_require_valid_citations() -> None:
+    with pytest.raises(ValidationError):
+        LearningCard(id="idea", kind="intuition", title="Idea", body="Body")
+
+    with pytest.raises(ValidationError):
+        KnowledgePoint(
+            id="light-vector",
+            title="Light vector",
+            summary="Direction and distance.",
+            primary_source_id="p109-formula-5.9",
+            citations=("p110-formula-5.10",),
+            cards=(
+                LearningCard(
+                    id="idea",
+                    kind="intuition",
+                    title="Idea",
+                    body="Body",
+                    citations=("p110-formula-5.10",),
+                ),
+            ),
+        )
+
+
+def test_lesson_rejects_duplicate_knowledge_point_and_card_ids() -> None:
+    card = LearningCard(
+        id="idea",
+        kind="intuition",
+        title="Idea",
+        body="Body",
+        citations=("p109-formula-5.9",),
+    )
+    with pytest.raises(ValidationError):
+        KnowledgePoint(
+            id="light-vector",
+            title="Light vector",
+            summary="Direction and distance.",
+            primary_source_id="p109-formula-5.9",
+            citations=("p109-formula-5.9",),
+            cards=(card, card),
+        )
+
+    point = KnowledgePoint(
+        id="light-vector",
+        title="Light vector",
+        summary="Direction and distance.",
+        primary_source_id="p109-formula-5.9",
+        citations=("p109-formula-5.9",),
+        cards=(card,),
+    )
+    with pytest.raises(ValidationError):
+        Lesson(
+            id="chapter-05-section-5.2.2",
+            chapter=5,
+            section="5.2.2",
+            title="Punctual lights",
+            sections=(
+                LessonSection(
+                    level="intuition",
+                    title="Idea",
+                    body="Body",
+                    citations=("p109-formula-5.9",),
+                ),
+            ),
+            shader_example_id="punctual-lights",
+            knowledge_points=(point, point),
         )
 
 
@@ -180,6 +271,55 @@ def test_real_directional_light_lesson_has_all_levels_and_valid_citations() -> N
     }
     assert shader.id == "directional-light"
     assert "p109-paragraph-3" in shader.source_block_ids
+
+
+def test_real_punctual_light_lesson_has_all_levels_and_valid_citations() -> None:
+    lesson, shader = load_lesson_bundle(PUNCTUAL_LESSON_PATH)
+
+    validate_lesson_bundle(lesson, shader, PUNCTUAL_BLOCK_IDS)
+    assert lesson.section == "5.2.2"
+    assert {section.level for section in lesson.sections} == {
+        "intuition",
+        "mathematics",
+        "graphics_meaning",
+        "implementation",
+        "example",
+        "pitfalls",
+        "exercises",
+    }
+    assert shader.id == "punctual-lights"
+    assert {"p111-formula-5.11", "p113-formula-5.18"}.issubset(
+        shader.source_block_ids
+    )
+    assert [point.id for point in lesson.knowledge_points] == [
+        "light-vector-distance",
+        "inverse-square-falloff",
+        "near-distance-stability",
+        "finite-light-range",
+        "spotlight-cone",
+    ]
+    assert {
+        "p109-formula-5.9",
+        "p111-formula-5.11",
+        "p111-formula-5.12",
+        "p111-formula-5.14",
+        "p113-formula-5.18",
+    }.issubset(
+        {point.primary_source_id for point in lesson.knowledge_points}
+    )
+    assert {
+        "intuition",
+        "derivation",
+        "visual",
+        "numeric_example",
+        "code",
+        "pitfall",
+        "exercise",
+    } == {
+        card.kind
+        for point in lesson.knowledge_points
+        for card in point.cards
+    }
 
 
 def test_shader_source_read_rejects_file_swapped_outside_content_root(

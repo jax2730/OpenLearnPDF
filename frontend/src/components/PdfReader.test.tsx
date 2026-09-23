@@ -87,6 +87,11 @@ describe("PdfReader", () => {
 
     fireEvent.click(overlay);
     expect(onSelectBlock).toHaveBeenCalledWith("p105-formula-5.1");
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(screen.queryByRole("button", { name: "公式 5.1，第 105 页" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(screen.getByRole("button", { name: "公式 5.1，第 105 页" })).toBeInTheDocument();
+    expect(getDocument).toHaveBeenCalledTimes(1);
   });
 
   it("uses normalized percentages and marks the selected overlay", async () => {

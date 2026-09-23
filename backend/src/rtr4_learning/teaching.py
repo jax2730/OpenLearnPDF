@@ -22,6 +22,15 @@ LessonLevel = Literal[
     "pitfalls",
     "exercises",
 ]
+LearningCardKind = Literal[
+    "intuition",
+    "derivation",
+    "visual",
+    "numeric_example",
+    "code",
+    "pitfall",
+    "exercise",
+]
 _REQUIRED_LEVELS = {
     "intuition",
     "mathematics",
@@ -58,6 +67,40 @@ class LessonQuestion(ContractModel):
         return self
 
 
+class LearningCard(ContractModel):
+    id: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]*$")]
+    kind: LearningCardKind
+    title: Annotated[str, Field(min_length=1)]
+    body: Annotated[str, Field(min_length=1)]
+    citations: Annotated[tuple[StableBlockId, ...], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def validate_unique_citations(self) -> LearningCard:
+        if len(self.citations) != len(set(self.citations)):
+            raise ValueError("card citations must be unique")
+        return self
+
+
+class KnowledgePoint(ContractModel):
+    id: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]*$")]
+    title: Annotated[str, Field(min_length=1)]
+    summary: Annotated[str, Field(min_length=1)]
+    primary_source_id: StableBlockId
+    citations: Annotated[tuple[StableBlockId, ...], Field(min_length=1)]
+    cards: Annotated[tuple[LearningCard, ...], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def validate_sources_and_cards(self) -> KnowledgePoint:
+        if len(self.citations) != len(set(self.citations)):
+            raise ValueError("knowledge point citations must be unique")
+        if self.primary_source_id not in self.citations:
+            raise ValueError("primary source must be included in point citations")
+        card_ids = [card.id for card in self.cards]
+        if len(card_ids) != len(set(card_ids)):
+            raise ValueError("knowledge point card IDs must be unique")
+        return self
+
+
 class Lesson(ContractModel):
     id: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9.-]*$")]
     chapter: Annotated[int, Field(gt=0)]
@@ -65,6 +108,7 @@ class Lesson(ContractModel):
     title: Annotated[str, Field(min_length=1)]
     sections: Annotated[tuple[LessonSection, ...], Field(min_length=1)]
     questions: tuple[LessonQuestion, ...] = ()
+    knowledge_points: tuple[KnowledgePoint, ...] = ()
     shader_example_id: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_-]*$")]
     shader_metadata_path: str = "examples/gooch.json"
 
@@ -72,6 +116,13 @@ class Lesson(ContractModel):
     @classmethod
     def validate_shader_metadata_path(cls, value: str) -> str:
         return _safe_relative_path(value)
+
+    @model_validator(mode="after")
+    def validate_unique_knowledge_points(self) -> Lesson:
+        point_ids = [point.id for point in self.knowledge_points]
+        if len(point_ids) != len(set(point_ids)):
+            raise ValueError("lesson knowledge point IDs must be unique")
+        return self
 
 
 class ShaderExample(ContractModel):
@@ -224,6 +275,17 @@ def validate_lesson_bundle(
         citation
         for question in lesson.questions
         for citation in question.citations
+    )
+    cited.update(
+        citation
+        for point in lesson.knowledge_points
+        for citation in point.citations
+    )
+    cited.update(
+        citation
+        for point in lesson.knowledge_points
+        for card in point.cards
+        for citation in card.citations
     )
     cited.update(shader.source_block_ids)
     unknown = sorted(cited.difference(known_block_ids))

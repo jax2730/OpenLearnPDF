@@ -48,12 +48,39 @@ export interface LessonSection {
   citations: string[];
 }
 
+export type LearningCardKind =
+  | "intuition"
+  | "derivation"
+  | "visual"
+  | "numeric_example"
+  | "code"
+  | "pitfall"
+  | "exercise";
+
+export interface LearningCard {
+  id: string;
+  kind: LearningCardKind;
+  title: string;
+  body: string;
+  citations: string[];
+}
+
+export interface KnowledgePoint {
+  id: string;
+  title: string;
+  summary: string;
+  primary_source_id: string;
+  citations: string[];
+  cards: LearningCard[];
+}
+
 export interface Lesson {
   id: string;
   chapter: number;
   section: string;
   title: string;
   sections: LessonSection[];
+  knowledge_points?: KnowledgePoint[];
 }
 
 export interface ShaderExample {

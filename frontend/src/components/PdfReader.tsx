@@ -31,13 +31,14 @@ export function PdfReader({
   const [aspectRatio, setAspectRatio] = useState<number>();
   const [dataError, setDataError] = useState<string>();
   const [pdfError, setPdfError] = useState<string>();
+  const [showBlocks, setShowBlocks] = useState(true);
 
   useEffect(() => {
     const controller = new AbortController();
     setPageData(undefined);
     setDataError(undefined);
     fetchPage(bookId, chapter, page, controller.signal)
-      .then(setPageData)
+      .then((data) => { if (!controller.signal.aborted) setPageData(data); })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setDataError(reason instanceof Error ? reason.message : "页面数据不可用");
@@ -145,6 +146,7 @@ export function PdfReader({
 
   return (
     <section aria-label={`PDF 第 ${page} 页`}>
+      <label className="overlay-toggle"><input type="checkbox" checked={showBlocks} onChange={(event) => setShowBlocks(event.target.checked)} /> 显示来源定位框（关闭可专注阅读）</label>
       {error ? <p role="alert">PDF 页面加载失败：{error}</p> : null}
       <div
         ref={frameRef}
@@ -160,7 +162,7 @@ export function PdfReader({
           ref={canvasRef}
           style={{ display: "block", width: "100%" }}
         />
-        {pageData ? (
+        {pageData && showBlocks ? (
           <BlockOverlay
             blocks={pageData.blocks}
             selectedBlockId={selectedBlockId}

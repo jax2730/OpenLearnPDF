@@ -3,11 +3,13 @@ import { useEffect, useState } from "react";
 import { getBlock, getLesson } from "../api";
 import type { LessonBundle, SourceBlock } from "../types";
 import { Formula } from "./Formula";
+import { KnowledgeLessonPanel } from "./KnowledgeLessonPanel";
 import { SourceCitation } from "./SourceCitation";
 
 interface LessonPanelProps {
   chapterSlug: string;
   sectionSlug: string;
+  selectedBlockId?: string;
   onNavigateSource: (page: number, blockId: string) => void;
 }
 
@@ -22,11 +24,13 @@ function isHttps(url: string) {
 export function LessonPanel({
   chapterSlug,
   sectionSlug,
+  selectedBlockId,
   onNavigateSource,
 }: LessonPanelProps) {
   const [bundle, setBundle] = useState<LessonBundle>();
   const [blocks, setBlocks] = useState<Map<string, SourceBlock>>(new Map());
   const [error, setError] = useState<string>();
+  const [activePointId, setActivePointId] = useState<string>();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -38,7 +42,13 @@ export function LessonPanel({
       .then(async (lessonBundle) => {
         const citationIds = [
           ...new Set(
-            lessonBundle.lesson.sections.flatMap((section) => section.citations),
+            [
+              ...lessonBundle.lesson.sections.flatMap((section) => section.citations),
+              ...(lessonBundle.lesson.knowledge_points ?? []).flatMap((point) => [
+                ...point.citations,
+                ...point.cards.flatMap((card) => card.citations),
+              ]),
+            ],
           ),
         ];
         const citedBlocks = await Promise.all(
@@ -47,6 +57,7 @@ export function LessonPanel({
         if (!controller.signal.aborted) {
           setBundle(lessonBundle);
           setBlocks(new Map(citedBlocks.map((block) => [block.id, block])));
+          setActivePointId(lessonBundle.lesson.knowledge_points?.[0]?.id);
         }
       })
       .catch((reason: unknown) => {
@@ -58,13 +69,34 @@ export function LessonPanel({
     return () => controller.abort();
   }, [chapterSlug, sectionSlug]);
 
+  useEffect(() => {
+    if (!selectedBlockId || !bundle?.lesson.knowledge_points?.length) return;
+    const matchingPoint = bundle.lesson.knowledge_points.find((point) =>
+      point.citations.includes(selectedBlockId),
+    );
+    if (matchingPoint) setActivePointId(matchingPoint.id);
+  }, [bundle, selectedBlockId]);
+
   if (error) return <p role="alert">课程加载失败：{error}</p>;
   if (!bundle) return <p>正在加载课程…</p>;
 
   return (
     <article aria-label={`课程 ${bundle.lesson.section}`}>
       <h2>{bundle.lesson.title}</h2>
-      {bundle.lesson.sections.map((section) => (
+      {bundle.lesson.knowledge_points?.length && activePointId ? (
+        <KnowledgeLessonPanel
+          key={bundle.lesson.id}
+          lessonId={bundle.lesson.id}
+          points={bundle.lesson.knowledge_points}
+          blocks={blocks}
+          activePointId={activePointId}
+          onSelectPoint={(pointId, page, blockId) => {
+            setActivePointId(pointId);
+            onNavigateSource(page, blockId);
+          }}
+          onNavigateSource={onNavigateSource}
+        />
+      ) : bundle.lesson.sections.map((section) => (
         <section key={section.level}>
           <h3>{section.title}</h3>
           <p>{section.body}</p>
@@ -89,9 +121,13 @@ export function LessonPanel({
       <section>
         <h3>Shader 示例</h3>
         <p>{bundle.shader.expected_visual}</p>
+        <p>展开 ShaderToy 版本并复制代码，在新建页面的 Image 编辑器中替换默认代码，再点击运行。外链打开编辑器，不会自动载入本示例。</p>
+        <details>
+          <summary>桌面 GLSL 源码</summary>
         <pre>
           <code>{bundle.shader_source}</code>
         </pre>
+        </details>
         <details>
           <summary>ShaderToy 版本</summary>
           <pre>
@@ -105,7 +141,7 @@ export function LessonPanel({
             rel="noopener noreferrer"
             target="_blank"
           >
-            打开 ShaderToy 演示
+            打开 ShaderToy 编辑器
           </a>
         ))}
       </section>

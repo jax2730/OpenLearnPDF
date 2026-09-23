@@ -167,6 +167,38 @@ def test_api_rejects_unsafe_paths_and_missing_resources(tmp_path) -> None:
     assert client.get("/api/lessons/../secret").status_code in {404, 422}
 
 
+def test_source_allows_access_time_change_but_rejects_content_change(tmp_path, monkeypatch) -> None:
+    import os
+    from types import SimpleNamespace
+
+    from rtr4_learning import api
+
+    client, _, source = _api_fixture(tmp_path)
+    original_fstat = os.fstat
+    identity = source.stat().st_ino
+    reads = 0
+    change_content = False
+
+    def changing_stat(fd):
+        nonlocal reads
+        value = original_fstat(fd)
+        if value.st_ino != identity:
+            return value
+        reads += 1
+        return SimpleNamespace(
+            st_dev=value.st_dev, st_ino=value.st_ino, st_size=value.st_size,
+            st_mtime_ns=value.st_mtime_ns + (reads if change_content else 0),
+            st_ctime_ns=value.st_ctime_ns, st_atime_ns=value.st_atime_ns + reads,
+        )
+
+    monkeypatch.setattr(api.os, "fstat", changing_stat)
+    response = client.get("/api/books/rtr4-cn/source", headers={"Range": "bytes=0-4"})
+    assert response.status_code == 206
+    assert response.content == b"%PDF-"
+    change_content = True
+    assert client.get("/api/books/rtr4-cn/source").status_code == 409
+
+
 def test_source_pdf_is_hash_checked_and_confined_to_allowed_roots(tmp_path) -> None:
     client, book_root, _ = _api_fixture(tmp_path)
     partial = client.get(
