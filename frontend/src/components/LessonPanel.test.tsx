@@ -143,7 +143,7 @@ describe("LessonPanel", () => {
 
     expect(await screen.findByText(/#version 330 core/)).toBeInTheDocument();
     expect(screen.getByText(/冷蓝到暖黄/)).toBeInTheDocument();
-    const demo = screen.getByRole("link", { name: "打开 ShaderToy 演示" });
+    const demo = screen.getByRole("link", { name: "打开 ShaderToy 编辑器" });
     expect(demo).toHaveAttribute("target", "_blank");
     expect(demo).toHaveAttribute("rel", "noopener noreferrer");
     expect(demo).toHaveAttribute("href", "https://www.shadertoy.com/new");
@@ -177,6 +177,9 @@ describe("LessonPanel", () => {
     );
 
     expect(await screen.findByText("连接两点。")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Shader 示例" })).toBeInTheDocument();
+    expect(screen.getByText(lessonBundle.browser_shader_source)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开 ShaderToy 编辑器" })).toHaveAttribute("href", "https://www.shadertoy.com/new");
     view.rerender(
       <LessonPanel
         chapterSlug="chapter-05"

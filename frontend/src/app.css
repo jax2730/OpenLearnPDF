@@ -7,6 +7,21 @@
 * { box-sizing: border-box; }
 body { margin: 0; }
 button { font: inherit; }
+input, textarea { font: inherit; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #315ee7; outline-offset: 3px; }
+button:disabled { opacity: .5; cursor: default; }
+.source-toolbar { flex-wrap: wrap; gap: 10px; }
+.page-context, .study-guide { color: #5d6677; font-size: .85rem; line-height: 1.6; }
+.page-context { margin: 4px 0 0; }
+.page-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.page-controls input { width: 64px; padding: 5px; border: 1px solid #cdd5e3; border-radius: 6px; }
+.page-controls button, .study-content button { padding: 6px 10px; border: 1px solid #cdd5e3; border-radius: 6px; background: #f7f9fc; cursor: pointer; }
+.reader-notice { padding: 0 12px; color: #a12b12; }
+.overlay-toggle { display: block; margin-bottom: 12px; font-size: .85rem; color: #5d6677; }
+.study-content p { line-height: 1.75; overflow-wrap: anywhere; }
+.study-content details { margin: 12px 0; }
+.study-content summary { cursor: pointer; padding: 8px 0; }
+.study-content textarea { display: block; width: 100%; min-height: 90px; margin: 8px 0; padding: 10px; border: 1px solid #cdd5e3; border-radius: 8px; resize: vertical; }
 
 .app-shell { min-height: 100vh; padding: 16px 20px 20px; }
 .app-header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 12px; }

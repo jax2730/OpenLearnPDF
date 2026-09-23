@@ -80,11 +80,12 @@ export function LessonPanel({
   if (error) return <p role="alert">课程加载失败：{error}</p>;
   if (!bundle) return <p>正在加载课程…</p>;
 
-  if (bundle.lesson.knowledge_points?.length && activePointId) {
-    return (
-      <article aria-label={`课程 ${bundle.lesson.section}`}>
-        <h2>{bundle.lesson.title}</h2>
+  return (
+    <article aria-label={`课程 ${bundle.lesson.section}`}>
+      <h2>{bundle.lesson.title}</h2>
+      {bundle.lesson.knowledge_points?.length && activePointId ? (
         <KnowledgeLessonPanel
+          key={bundle.lesson.id}
           lessonId={bundle.lesson.id}
           points={bundle.lesson.knowledge_points}
           blocks={blocks}
@@ -95,14 +96,7 @@ export function LessonPanel({
           }}
           onNavigateSource={onNavigateSource}
         />
-      </article>
-    );
-  }
-
-  return (
-    <article aria-label={`课程 ${bundle.lesson.section}`}>
-      <h2>{bundle.lesson.title}</h2>
-      {bundle.lesson.sections.map((section) => (
+      ) : bundle.lesson.sections.map((section) => (
         <section key={section.level}>
           <h3>{section.title}</h3>
           <p>{section.body}</p>
@@ -127,9 +121,13 @@ export function LessonPanel({
       <section>
         <h3>Shader 示例</h3>
         <p>{bundle.shader.expected_visual}</p>
+        <p>展开 ShaderToy 版本并复制代码，在新建页面的 Image 编辑器中替换默认代码，再点击运行。外链打开编辑器，不会自动载入本示例。</p>
+        <details>
+          <summary>桌面 GLSL 源码</summary>
         <pre>
           <code>{bundle.shader_source}</code>
         </pre>
+        </details>
         <details>
           <summary>ShaderToy 版本</summary>
           <pre>
@@ -143,7 +141,7 @@ export function LessonPanel({
             rel="noopener noreferrer"
             target="_blank"
           >
-            打开 ShaderToy 演示
+            打开 ShaderToy 编辑器
           </a>
         ))}
       </section>

@@ -41,6 +41,34 @@ vi.mock("./components/LessonPanel", () => ({
 }));
 
 describe("App", () => {
+  it("commits a page only on submit and rejects invalid pages", () => {
+    render(<App />);
+    const input = screen.getByLabelText("PDF 页码");
+    fireEvent.change(input, { target: { value: "11" } });
+    expect(screen.getByLabelText("PDF 阅读器")).toHaveTextContent("105:none");
+    fireEvent.click(screen.getByRole("button", { name: "跳转" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("104–154");
+    fireEvent.change(input, { target: { value: "154" } });
+    fireEvent.click(screen.getByRole("button", { name: "跳转" }));
+    expect(screen.getByLabelText("PDF 阅读器")).toHaveTextContent("154:none");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled();
+    fireEvent.change(input, { target: { value: "104" } });
+    fireEvent.click(screen.getByRole("button", { name: "跳转" }));
+    expect(screen.getByRole("button", { name: "上一页" })).toBeDisabled();
+  });
+
+  it("clears stale citations when changing course or browsing pages", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "跳到来源" }));
+    expect(screen.getByLabelText("PDF 页码")).toHaveValue("106");
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(screen.getByLabelText("PDF 阅读器")).toHaveTextContent("107:none");
+    fireEvent.click(screen.getByRole("button", { name: "5.2.2 精确光源" }));
+    expect(screen.getByLabelText("PDF 阅读器")).toHaveTextContent("109:none");
+    expect(screen.getByLabelText("PDF 页码")).toHaveValue("109");
+  });
+
   it("shows the RTR4 learning system heading", () => {
     render(<App />);
 
