@@ -32,8 +32,17 @@ button:disabled { opacity: .5; cursor: default; }
   display: grid;
   grid-template-columns: minmax(0, 55fr) minmax(380px, 45fr);
   gap: 16px;
-  height: calc(100vh - 82px);
+  height: calc(100dvh - 130px);
 }
+
+.workspace-actions { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.workspace-actions button { padding: 8px 14px; border: 1px solid #cdd5e3; border-radius: 8px; background: white; cursor: pointer; }
+.workspace-actions span { font-size: .85rem; color: #5d6677; }
+.source-slot, .study-slot { min-width: 0; min-height: 0; height: 100%; }
+.source-slot > .workspace-pane, .study-slot > .workspace-pane { height: 100%; }
+.study-slot[hidden] { display: none; }
+.learning-workspace.is-focused { grid-template-columns: minmax(0, 1fr); }
+.source-pane { overflow-anchor: none; }
 
 .workspace-pane {
   min-width: 0;
@@ -97,4 +106,6 @@ pre { max-width: 100%; overflow: auto; padding: 12px; border-radius: 8px; backgr
   .learning-workspace { display: block; height: auto; }
   .workspace-pane { overflow: visible; margin-bottom: 14px; }
   .source-pane { max-height: 70vh; overflow: auto; }
+  .learning-workspace.is-focused .source-pane { max-height: none; height: calc(100dvh - 150px); }
+  .workspace-actions { flex-wrap: wrap; }
 }

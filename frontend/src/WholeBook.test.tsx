@@ -16,7 +16,15 @@ function jump(page: string) {
   fireEvent.click(screen.getByRole("button", { name: "跳转" }));
 }
 describe("whole-book reader", () => {
-  beforeEach(() => { vi.mocked(getBook).mockReset().mockResolvedValue(book); });
+  beforeEach(() => { localStorage.clear(); vi.mocked(getBook).mockReset().mockResolvedValue(book); });
+  it("does not reopen the companion after page navigation", async () => {
+    render(<App />);
+    await screen.findByText(/全书共 903 页/);
+    fireEvent.click(screen.getByRole("button", { name: "收起伴读" }));
+    jump("903");
+    expect(screen.getByRole("button", { name: "展开伴读" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("region", { name: "知识点学习区" })).not.toBeInTheDocument();
+  });
   it("uses book bounds and hides unrelated lessons", async () => {
     render(<App />);
     await screen.findByText(/全书共 903 页/);

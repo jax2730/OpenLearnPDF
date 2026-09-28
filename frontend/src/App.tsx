@@ -5,6 +5,7 @@ import type { BookManifest } from "./types";
 import { LessonPanel } from "./components/LessonPanel";
 import { PdfReader } from "./components/PdfReader";
 import { QuestionPanel } from "./components/QuestionPanel";
+import { ReadingWorkspace } from "./components/ReadingWorkspace";
 
 export default function App() {
   const [page, setPage] = useState(105);
@@ -65,7 +66,7 @@ export default function App() {
         <h1>RTR4 学习系统 · 知识点精读</h1>
         <p>先读原书，再看讲解，最后动手验证</p>
       </header>
-      <div className="learning-workspace">
+      <ReadingWorkspace source={
         <section aria-label="原书 PDF" className="workspace-pane source-pane">
           <header className="pane-header source-toolbar">
             <div>
@@ -99,6 +100,7 @@ export default function App() {
             onSelectBlock={setSelectedBlockId}
           />
         </section>
+      } study={
         <section aria-label="知识点学习区" className="workspace-pane study-pane">
           <header className="pane-header">
             <nav aria-label="第五章课程" className="course-selector">
@@ -124,7 +126,7 @@ export default function App() {
             {chapter?.id === "5" ? <QuestionPanel onNavigateSource={navigateSource} /> : <p>本区域暂未接入来源检索。</p>}
           </div>
         </section>
-      </div>
+      } />
     </main>
   );
 }
