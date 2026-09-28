@@ -3,7 +3,7 @@ import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-import { getPage as fetchPage } from "../api";
+import { getBookPage as fetchPage } from "../api";
 import type { PageDocument } from "../types";
 import { BlockOverlay } from "./BlockOverlay";
 
@@ -11,7 +11,7 @@ GlobalWorkerOptions.workerSrc = workerUrl;
 
 interface PdfReaderProps {
   bookId: string;
-  chapter: number;
+  chapter?: number;
   page: number;
   selectedBlockId?: string;
   onSelectBlock: (blockId: string) => void;
@@ -19,7 +19,6 @@ interface PdfReaderProps {
 
 export function PdfReader({
   bookId,
-  chapter,
   page,
   selectedBlockId,
   onSelectBlock,
@@ -37,7 +36,7 @@ export function PdfReader({
     const controller = new AbortController();
     setPageData(undefined);
     setDataError(undefined);
-    fetchPage(bookId, chapter, page, controller.signal)
+    fetchPage(bookId, page, controller.signal)
       .then((data) => { if (!controller.signal.aborted) setPageData(data); })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
@@ -45,7 +44,7 @@ export function PdfReader({
         }
       });
     return () => controller.abort();
-  }, [bookId, chapter, page]);
+  }, [bookId, page]);
 
   useEffect(() => {
     let disposed = false;
@@ -142,12 +141,12 @@ export function PdfReader({
     };
   }, [pdfDocument, page]);
 
-  const error = dataError ?? pdfError;
-
   return (
     <section aria-label={`PDF 第 ${page} 页`}>
       <label className="overlay-toggle"><input type="checkbox" checked={showBlocks} onChange={(event) => setShowBlocks(event.target.checked)} /> 显示来源定位框（关闭可专注阅读）</label>
-      {error ? <p role="alert">PDF 页面加载失败：{error}</p> : null}
+      {pdfError ? <p role="alert">PDF 页面加载失败：{pdfError}</p> : null}
+      {dataError ? <p role="status">页面解析数据不可用，原书仍可阅读：{dataError}</p> : null}
+      {pageData?.analysis_status === "not_parsed" ? <p role="status">本页尚未解析，可继续阅读原书；暂无区域定位。</p> : null}
       <div
         ref={frameRef}
         style={{

@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 
+vi.mock("./api", () => ({ getBook: vi.fn().mockResolvedValue({
+  id: "rtr4-cn", title: "RTR4", page_count: 903,
+  chapters: [{ id: "5", title: "第五章", start_page: 104, end_page: 154 }],
+}) }));
+
+async function openApp() {
+  render(<App />);
+  await screen.findByLabelText("PDF 页码");
+}
+
 vi.mock("./components/PdfReader", () => ({
   PdfReader: ({
     page,
@@ -41,25 +51,25 @@ vi.mock("./components/LessonPanel", () => ({
 }));
 
 describe("App", () => {
-  it("commits a page only on submit and rejects invalid pages", () => {
-    render(<App />);
+  it("commits a page only on submit and rejects invalid pages", async () => {
+    await openApp();
     const input = screen.getByLabelText("PDF 页码");
-    fireEvent.change(input, { target: { value: "11" } });
+    fireEvent.change(input, { target: { value: "904" } });
     expect(screen.getByLabelText("PDF 阅读器")).toHaveTextContent("105:none");
     fireEvent.click(screen.getByRole("button", { name: "跳转" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("104–154");
-    fireEvent.change(input, { target: { value: "154" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("1–903");
+    fireEvent.change(input, { target: { value: "903" } });
     fireEvent.click(screen.getByRole("button", { name: "跳转" }));
-    expect(screen.getByLabelText("PDF 阅读器")).toHaveTextContent("154:none");
+    expect(screen.getByLabelText("PDF 阅读器")).toHaveTextContent("903:none");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled();
-    fireEvent.change(input, { target: { value: "104" } });
+    fireEvent.change(input, { target: { value: "1" } });
     fireEvent.click(screen.getByRole("button", { name: "跳转" }));
     expect(screen.getByRole("button", { name: "上一页" })).toBeDisabled();
   });
 
-  it("clears stale citations when changing course or browsing pages", () => {
-    render(<App />);
+  it("clears stale citations when changing course or browsing pages", async () => {
+    await openApp();
     fireEvent.click(screen.getByRole("button", { name: "跳到来源" }));
     expect(screen.getByLabelText("PDF 页码")).toHaveValue("106");
     fireEvent.click(screen.getByRole("button", { name: "下一页" }));
@@ -69,24 +79,24 @@ describe("App", () => {
     expect(screen.getByLabelText("PDF 页码")).toHaveValue("109");
   });
 
-  it("shows the RTR4 learning system heading", () => {
-    render(<App />);
+  it("shows the RTR4 learning system heading", async () => {
+    await openApp();
 
     expect(
       screen.getByRole("heading", { name: /RTR4 学习系统/ }),
     ).toBeInTheDocument();
   });
 
-  it("renders independently from previous tests", () => {
-    render(<App />);
+  it("renders independently from previous tests", async () => {
+    await openApp();
 
     expect(
       screen.getByRole("heading", { name: /RTR4 学习系统/ }),
     ).toBeInTheDocument();
   });
 
-  it("navigates the reader and highlights a lesson citation", () => {
-    render(<App />);
+  it("navigates the reader and highlights a lesson citation", async () => {
+    await openApp();
 
     fireEvent.click(screen.getByRole("button", { name: "跳到来源" }));
 
@@ -95,8 +105,8 @@ describe("App", () => {
     );
   });
 
-  it("switches between chapter 5 lessons", () => {
-    render(<App />);
+  it("switches between chapter 5 lessons", async () => {
+    await openApp();
 
     expect(screen.getByLabelText("当前课程")).toHaveTextContent("section-5.1");
     fireEvent.click(screen.getByRole("button", { name: "5.2 光源" }));
@@ -110,8 +120,8 @@ describe("App", () => {
     );
   });
 
-  it("forwards a selected PDF block to the lesson", () => {
-    render(<App />);
+  it("forwards a selected PDF block to the lesson", async () => {
+    await openApp();
 
     fireEvent.click(screen.getByRole("button", { name: "选择 PDF 块" }));
     expect(screen.getByLabelText("课程选中来源")).toHaveTextContent(
@@ -119,8 +129,8 @@ describe("App", () => {
     );
   });
 
-  it("renders labelled source and study panes", () => {
-    render(<App />);
+  it("renders labelled source and study panes", async () => {
+    await openApp();
 
     expect(screen.getByRole("region", { name: "原书 PDF" })).toHaveClass(
       "workspace-pane",

@@ -1,9 +1,18 @@
 import type {
+  BookManifest,
   LessonBundle,
   PageDocument,
   QuestionAnswer,
   SourceBlock,
 } from "./types";
+
+export function getBook(bookId: string, signal?: AbortSignal) {
+  return readJson<BookManifest>(`/api/books/${encodeURIComponent(bookId)}`, signal);
+}
+
+export function getBookPage(bookId: string, page: number, signal?: AbortSignal) {
+  return readJson<PageDocument>(`/api/books/${encodeURIComponent(bookId)}/pages/${page}`, signal);
+}
 
 async function readJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal });

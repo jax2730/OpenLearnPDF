@@ -35,10 +35,18 @@ export interface SourceBlock {
 }
 
 export interface PageDocument {
+  analysis_status?: "parsed" | "not_parsed";
   page: number;
   blocks: SourceBlock[];
   width_points?: number | null;
   height_points?: number | null;
+}
+
+export interface BookManifest {
+  id: string;
+  title: string;
+  page_count: number;
+  chapters: { id: string; title: string; start_page: number; end_page: number }[];
 }
 
 export interface LessonSection {

@@ -78,7 +78,7 @@ describe("PdfReader", () => {
       name: "公式 5.1，第 105 页",
     });
     expect(fetch).toHaveBeenCalledWith(
-      "/api/books/rtr4-cn/chapters/5/pages/105",
+      "/api/books/rtr4-cn/pages/105",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(getDocument).toHaveBeenCalledWith({
@@ -137,6 +137,16 @@ describe("PdfReader", () => {
         "PDF 页面加载失败：broken PDF",
       );
     });
+  });
+
+  it("keeps the PDF readable when page analysis is not yet available", async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({
+      page: 1, blocks: [], analysis_status: "not_parsed",
+    }) } as Response);
+    render(<PdfReader bookId="rtr4-cn" page={1} onSelectBlock={() => undefined} />);
+    expect(await screen.findByText(/本页尚未解析/)).toBeInTheDocument();
+    await waitFor(() => expect(getPage).toHaveBeenCalledWith(1));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("serializes resize rendering on the same canvas", async () => {
