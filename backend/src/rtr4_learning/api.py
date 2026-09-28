@@ -157,6 +157,23 @@ def create_app(settings: Settings) -> FastAPI:
     def get_book(book_id: str) -> dict[str, object]:
         return _public_manifest(_manifest(settings, book_id))
 
+    @app.get("/api/books/{book_id}/pages/{page_number}")
+    def get_book_page(book_id: str, page_number: int) -> dict[str, object]:
+        manifest = _manifest(settings, book_id)
+        if not 1 <= page_number <= manifest.page_count:
+            raise _not_found("page is outside book")
+        try:
+            pages = _pages(settings, book_id)
+        except HTTPException as error:
+            if error.status_code != 404:
+                raise
+            pages = ()
+        page = next((item for item in pages if item.page == page_number), None)
+        return {
+            **(page or PageDocument(page=page_number)).model_dump(mode="json"),
+            "analysis_status": "parsed" if page is not None else "not_parsed",
+        }
+
     @app.get(
         "/api/books/{book_id}/chapters/{chapter_id}/pages/{page_number}",
         response_model=PageDocument,

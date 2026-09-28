@@ -83,6 +83,33 @@ def test_health_book_page_and_block_endpoints(tmp_path) -> None:
     assert block.json()["latex"].startswith("c_{shaded}")
 
 
+def test_whole_book_pages_distinguish_unparsed_from_invalid(tmp_path) -> None:
+    client = _client(tmp_path)
+    parsed = client.get("/api/books/rtr4-cn/pages/105")
+    assert parsed.status_code == 200
+    assert parsed.json()["analysis_status"] == "parsed"
+    assert parsed.json()["blocks"]
+    for number in (1, 1250):
+        response = client.get(f"/api/books/rtr4-cn/pages/{number}")
+        assert response.status_code == 200
+        assert response.json() == {
+            "page": number, "blocks": [], "width_points": None,
+            "height_points": None, "analysis_status": "not_parsed",
+        }
+    for number in (0, 1251):
+        assert client.get(f"/api/books/rtr4-cn/pages/{number}").status_code == 404
+
+
+def test_whole_book_pages_do_not_hide_corrupt_artifacts(tmp_path) -> None:
+    client, root, _ = _api_fixture(tmp_path)
+    (root / "normalized/pages.json").write_text("broken", encoding="utf-8")
+    assert client.get("/api/books/rtr4-cn/pages/1").status_code == 500
+    (root / "normalized/pages.json").unlink()
+    response = client.get("/api/books/rtr4-cn/pages/1")
+    assert response.status_code == 200
+    assert response.json()["analysis_status"] == "not_parsed"
+
+
 def test_search_lesson_and_capabilities_endpoints(tmp_path) -> None:
     client = _client(tmp_path)
 
