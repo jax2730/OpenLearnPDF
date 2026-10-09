@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ReadingWorkspace } from "./ReadingWorkspace";
 import { restoreAnchor } from "../readingAnchor";
@@ -44,4 +44,34 @@ it("falls back safely for corrupt or incorrectly typed preferences", () => {
     expect(screen.getByRole("button", { name: "收起伴读" })).toBeInTheDocument();
     view.unmount();
   }
+});
+
+it("resizes with keyboard and restores the default split", () => {
+  render(<ReadingWorkspace source={<p>原书</p>} study={<p>讲解</p>} />);
+  const separator = screen.getByRole("separator");
+  expect(separator).toHaveAttribute("aria-valuenow", "40");
+  fireEvent.keyDown(separator, { key: "ArrowLeft" });
+  expect(separator).toHaveAttribute("aria-valuenow", "42");
+  fireEvent.keyDown(separator, { key: "Home" });
+  expect(separator).toHaveAttribute("aria-valuenow", "40");
+});
+
+it("shows only one compact pane without replacing mounted content", () => {
+  let resize: ResizeObserverCallback = () => undefined;
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(callback: ResizeObserverCallback) { resize = callback; }
+    observe() {} disconnect() {}
+  });
+  const view = render(<ReadingWorkspace source={<canvas data-testid="original" />} study={<textarea aria-label="笔记" />} />);
+  const original = screen.getByTestId("original");
+  // Act through the observer: mode is based on actual workspace width.
+  fireEvent(window, new Event("resize"));
+  act(() => resize([{ contentRect: { width: 700 } } as ResizeObserverEntry], {} as ResizeObserver));
+  fireEvent.click(screen.getByRole("button", { name: "伴读" }));
+  expect(screen.getByTestId("original")).not.toBeVisible();
+  expect(screen.getByLabelText("笔记")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "原书" }));
+  expect(screen.getByTestId("original")).toBe(original);
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  view.unmount(); vi.unstubAllGlobals();
 });

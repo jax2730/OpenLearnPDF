@@ -6,6 +6,7 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { getBookPage as fetchPage } from "../api";
 import type { PageDocument } from "../types";
 import { BlockOverlay } from "./BlockOverlay";
+import { restoreAnchor } from "../readingAnchor";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -75,6 +76,19 @@ export function PdfReader({
     let disposed = false;
     let resizeObserver: ResizeObserver | undefined;
     let activeRenderTask: RenderTask | undefined;
+    const pane = frameRef.current?.closest<HTMLElement>(".source-pane");
+    let anchor = -1;
+    let interaction = 0;
+    let renderedHeight = 0;
+    let renderedTop = 0;
+    if (pane) pane.scrollTop = 0;
+    const remember = () => {
+      if (!pane || !renderedHeight || !frameRef.current?.clientWidth) return;
+      anchor = pane.scrollTop === 0 ? -1 : Math.max(0, Math.min(1, (pane.scrollTop + (pane.querySelector<HTMLElement>(".source-toolbar")?.offsetHeight ?? 0) - renderedTop) / renderedHeight));
+    };
+    const userInput = () => { interaction++; };
+    pane?.addEventListener("scroll", remember);
+    for (const event of ["wheel", "touchstart", "pointerdown", "keydown"]) pane?.addEventListener(event, userInput, { passive: true });
     setPdfError(undefined);
 
     const handleRenderError = (reason: unknown) => {
@@ -103,7 +117,10 @@ export function PdfReader({
               const frame = frameRef.current;
               if (disposed || !canvas || !frame) return;
               const base = pdfPage.getViewport({ scale: 1 });
-              const targetWidth = frame.clientWidth || base.width;
+              const targetWidth = frame.clientWidth;
+              if (targetWidth <= 0) return;
+              const token = interaction;
+              const savedAnchor = anchor;
               const viewport = pdfPage.getViewport({
                 scale: targetWidth / base.width,
               });
@@ -119,6 +136,13 @@ export function PdfReader({
               });
               await activeRenderTask.promise;
               activeRenderTask = undefined;
+              if (disposed) return;
+              renderedHeight = viewport.height;
+              if (pane) {
+                renderedTop = canvas.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+                if (interaction === token && savedAnchor !== null) pane.scrollTop = restoreAnchor(savedAnchor, renderedTop, renderedHeight, pane.querySelector<HTMLElement>(".source-toolbar")?.offsetHeight ?? 0, pane.scrollHeight - pane.clientHeight);
+                remember();
+              }
             } while (rerenderRequested && !disposed);
           } finally {
             rendering = false;
@@ -138,6 +162,8 @@ export function PdfReader({
       disposed = true;
       resizeObserver?.disconnect();
       activeRenderTask?.cancel();
+      pane?.removeEventListener("scroll", remember);
+      for (const event of ["wheel", "touchstart", "pointerdown", "keydown"]) pane?.removeEventListener(event, userInput);
     };
   }, [pdfDocument, page]);
 

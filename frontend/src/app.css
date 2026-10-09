@@ -31,7 +31,7 @@ button:disabled { opacity: .5; cursor: default; }
 .learning-workspace {
   display: grid;
   grid-template-columns: minmax(0, 55fr) minmax(380px, 45fr);
-  gap: 16px;
+  gap: 0;
   height: calc(100dvh - 130px);
 }
 
@@ -40,7 +40,13 @@ button:disabled { opacity: .5; cursor: default; }
 .workspace-actions span { font-size: .85rem; color: #5d6677; }
 .source-slot, .study-slot { min-width: 0; min-height: 0; height: 100%; }
 .source-slot > .workspace-pane, .study-slot > .workspace-pane { height: 100%; }
-.study-slot[hidden] { display: none; }
+.study-slot[hidden], .source-slot[hidden] { display: none; }
+.workspace-separator { cursor: col-resize; touch-action: none; border-radius: 6px; margin: 0 3px; background: #d5dce8; }
+.workspace-separator:hover, .workspace-separator:focus-visible { background: #315ee7; outline: 2px solid #315ee7; }
+.workspace-actions nav { display: flex; gap: 8px; }
+.workspace-actions button[aria-pressed="true"] { background: #315ee7; color: white; }
+.learning-workspace.is-compact { display: block; }
+.learning-workspace.is-compact .workspace-pane { height: 100%; overflow: auto; }
 .learning-workspace.is-focused { grid-template-columns: minmax(0, 1fr); }
 .source-pane { overflow-anchor: none; }
 
@@ -101,11 +107,9 @@ button:disabled { opacity: .5; cursor: default; }
 
 pre { max-width: 100%; overflow: auto; padding: 12px; border-radius: 8px; background: #111827; color: #e5edf9; }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .app-shell { padding: 10px; }
-  .learning-workspace { display: block; height: auto; }
-  .workspace-pane { overflow: visible; margin-bottom: 14px; }
-  .source-pane { max-height: 70vh; overflow: auto; }
-  .learning-workspace.is-focused .source-pane { max-height: none; height: calc(100dvh - 150px); }
+  .app-header { flex-wrap: wrap; gap: 4px; }
+  .learning-workspace { height: calc(100dvh - 150px); }
   .workspace-actions { flex-wrap: wrap; }
 }

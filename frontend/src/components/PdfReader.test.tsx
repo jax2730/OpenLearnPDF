@@ -45,6 +45,7 @@ describe("PdfReader", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
       {} as CanvasRenderingContext2D,
     );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(640);
     getPage.mockResolvedValue({
       getViewport: ({ scale }: { scale: number }) => ({
         width: 595 * scale,
@@ -284,5 +285,23 @@ describe("PdfReader", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "PDF 页面加载失败：resize failed",
     );
+  });
+
+  it("waits while hidden and renders after becoming visible without reopening the document", async () => {
+    let width = 0;
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => width);
+    let notify = () => undefined;
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: ResizeObserverCallback) { notify = () => callback([], this as unknown as ResizeObserver); }
+      observe() {} disconnect() {}
+    });
+    const draw = vi.fn(() => ({ promise: Promise.resolve(), cancel: vi.fn() }));
+    getPage.mockResolvedValue({ getViewport: ({ scale }: { scale: number }) => ({ width: 595 * scale, height: 842 * scale }), render: draw });
+    render(<PdfReader bookId="rtr4-cn" page={105} onSelectBlock={() => undefined} />);
+    await waitFor(() => expect(getPage).toHaveBeenCalledWith(105));
+    expect(draw).not.toHaveBeenCalled();
+    width = 640; notify();
+    await waitFor(() => expect(draw).toHaveBeenCalledOnce());
+    expect(getDocument).toHaveBeenCalledTimes(1);
   });
 });
