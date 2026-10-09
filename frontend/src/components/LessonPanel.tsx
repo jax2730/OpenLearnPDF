@@ -80,6 +80,18 @@ export function LessonPanel({
   if (error) return <p role="alert">课程加载失败：{error}</p>;
   if (!bundle) return <p>正在加载课程…</p>;
 
+  const sections = bundle.lesson.sections.map((section) => {
+    const content = <><p>{section.body}</p>{section.citations.map((id) => {
+      const block = blocks.get(id);
+      if (!block) return null;
+      return <div key={id}>
+        {block.latex ? <Formula latex={block.latex} label={`公式 ${block.number ?? block.id}`} /> : null}
+        <SourceCitation block={block} onNavigate={onNavigateSource} />
+      </div>;
+    })}</>;
+    return section.level === "intuition" ? <section key={section.level}><h3>{section.title}</h3>{content}</section> : <details key={`${bundle.lesson.id}:${section.level}`}><summary>{section.title}</summary>{content}</details>;
+  });
+
   return (
     <article aria-label={`课程 ${bundle.lesson.section}`}>
       <h2>{bundle.lesson.title}</h2>
@@ -96,27 +108,8 @@ export function LessonPanel({
           }}
           onNavigateSource={onNavigateSource}
         />
-      ) : bundle.lesson.sections.map((section) => (
-        <section key={section.level}>
-          <h3>{section.title}</h3>
-          <p>{section.body}</p>
-          {section.citations.map((id) => {
-            const block = blocks.get(id);
-            if (!block) return null;
-            return (
-              <div key={id}>
-                {block.latex ? (
-                  <Formula
-                    latex={block.latex}
-                    label={`公式 ${block.number ?? block.id}`}
-                  />
-                ) : null}
-                <SourceCitation block={block} onNavigate={onNavigateSource} />
-              </div>
-            );
-          })}
-        </section>
-      ))}
+      ) : sections}
+      {bundle.lesson.knowledge_points?.length ? <details key={`${bundle.lesson.id}:legacy`}><summary>原有完整课程讲解</summary>{sections}</details> : null}
 
       <section>
         <h3>Shader 示例</h3>

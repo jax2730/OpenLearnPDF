@@ -125,6 +125,7 @@ describe("LessonPanel", () => {
     );
 
     await waitFor(() => expect(container.querySelector(".katex")).not.toBeNull());
+    fireEvent.click(screen.getByText("数学结构"));
     const citation = screen.getByRole("button", {
       name: "查看来源：第 105 页，公式 5.1",
     });
@@ -177,6 +178,7 @@ describe("LessonPanel", () => {
     );
 
     expect(await screen.findByText("连接两点。")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("原有完整课程讲解"));
     expect(screen.getByRole("heading", { name: "Shader 示例" })).toBeInTheDocument();
     expect(screen.getByText(lessonBundle.browser_shader_source)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "打开 ShaderToy 编辑器" })).toHaveAttribute("href", "https://www.shadertoy.com/new");
@@ -189,5 +191,14 @@ describe("LessonPanel", () => {
       />,
     );
     expect(await screen.findByText("距离翻倍。")).toBeInTheDocument();
+  });
+
+  it("layers legacy explanations without losing their text or citations", async () => {
+    render(<LessonPanel chapterSlug="chapter-05" sectionSlug="section-5.1" onNavigateSource={() => undefined} />);
+    const summary = await screen.findByText("数学结构");
+    expect(summary.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(summary);
+    expect(summary.closest("details")).toHaveAttribute("open");
+    expect(screen.getByText("先计算基础色，再混合高光。")).toBeVisible();
   });
 });

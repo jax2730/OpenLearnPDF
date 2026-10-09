@@ -109,7 +109,7 @@ describe("KnowledgeLessonPanel", () => {
     );
   });
 
-  it("shows one card at a time and moves to the next card", () => {
+  it("keeps the core visible while expanding derivation without marking mastery", () => {
     render(
       <KnowledgeLessonPanel
         lessonId="lesson"
@@ -122,10 +122,11 @@ describe("KnowledgeLessonPanel", () => {
     );
 
     expect(screen.getByRole("heading", { name: "直觉" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "推导" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "下一步" }));
-    expect(screen.getByRole("heading", { name: "推导" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "上一步" }));
+    const detail = screen.getByText("推导").closest("details")!;
+    expect(detail).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("推导"));
+    expect(detail).toHaveAttribute("open");
+    expect(screen.getByText("已掌握 0 / 2")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "直觉" })).toBeInTheDocument();
   });
 
