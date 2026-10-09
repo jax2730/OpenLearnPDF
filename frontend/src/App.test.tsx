@@ -51,6 +51,15 @@ vi.mock("./components/LessonPanel", () => ({
 }));
 
 describe("App", () => {
+  it("opens the cross-chapter guide and returns from a cited PDF page", async () => {
+    await openApp();
+    fireEvent.click(screen.getByRole("button", { name: "渲染流程入门" }));
+    fireEvent.click(screen.getByRole("button", { name: "20.1 延迟着色 · PDF 708" }));
+    expect(screen.getByLabelText("PDF 页码")).toHaveValue("708");
+    expect(screen.getByRole("heading", { name: "前向、延迟与后处理：从一帧的产生开始" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /返回引用前/ }));
+    expect(screen.getByLabelText("PDF 页码")).toHaveValue("105");
+  });
   it("commits a page only on submit and rejects invalid pages", async () => {
     await openApp();
     const input = screen.getByLabelText("PDF 页码");

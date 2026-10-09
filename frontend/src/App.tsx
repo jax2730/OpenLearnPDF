@@ -6,6 +6,7 @@ import { LessonPanel } from "./components/LessonPanel";
 import { PdfReader } from "./components/PdfReader";
 import { QuestionPanel } from "./components/QuestionPanel";
 import { ReadingWorkspace } from "./components/ReadingWorkspace";
+import { RenderingGuide } from "./components/RenderingGuide";
 
 export default function App() {
   const [page, setPage] = useState(105);
@@ -16,6 +17,9 @@ export default function App() {
   const [book, setBook] = useState<BookManifest>();
   const [bookError, setBookError] = useState("");
   const [reload, setReload] = useState(0);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [sourceRequest, setSourceRequest] = useState(0);
+  const [returnPage, setReturnPage] = useState<number>();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,6 +40,7 @@ export default function App() {
   const hasLesson = page >= 105 && page <= 114;
 
   const changePage = (next: number) => {
+    setReturnPage(undefined);
     setPage(next);
     setPageDraft(String(next));
     setPageError("");
@@ -46,12 +51,15 @@ export default function App() {
   };
 
   const selectCourse = (slug: string, startPage: number) => {
+    setGuideOpen(false);
     changePage(startPage);
     setSectionSlug(slug);
   };
 
   const navigateSource = (sourcePage: number, blockId: string) => {
     changePage(sourcePage);
+    setReturnPage(returnPage ?? page);
+    setSourceRequest((current) => current + 1);
     setSectionSlug(sectionSlug);
     setSelectedBlockId(blockId);
   };
@@ -66,7 +74,7 @@ export default function App() {
         <h1>RTR4 学习系统 · 知识点精读</h1>
         <p>先读原书，再看讲解，最后动手验证</p>
       </header>
-      <ReadingWorkspace source={
+      <ReadingWorkspace sourceRequest={sourceRequest} source={
         <section aria-label="原书 PDF" className="workspace-pane source-pane">
           <header className="pane-header source-toolbar">
             <div>
@@ -93,6 +101,7 @@ export default function App() {
             </form>
           </header>
           {pageError ? <p role="alert" className="reader-notice">{pageError}</p> : null}
+          {returnPage !== undefined ? <button type="button" className="return-source" onClick={() => changePage(returnPage)}>返回引用前 · PDF {returnPage}（窄屏可切回伴读）</button> : null}
           <PdfReader
             bookId="rtr4-cn"
             page={page}
@@ -103,6 +112,7 @@ export default function App() {
       } study={
         <section aria-label="知识点学习区" className="workspace-pane study-pane">
           <header className="pane-header">
+            <button type="button" aria-pressed={guideOpen} onClick={() => setGuideOpen(!guideOpen)}>渲染流程入门</button>
             <nav aria-label="第五章课程" className="course-selector">
               <button aria-pressed={sectionSlug === "section-5.1"} type="button" onClick={() => selectCourse("section-5.1", 105)}>
               5.1 着色模型
@@ -117,13 +127,16 @@ export default function App() {
           </header>
           <div className="study-content">
             <p className="study-guide">全书可阅读不代表全书已完成精讲。现有课程入口：5.1、5.2 与 5.2.2。</p>
-            {hasLesson ? <LessonPanel
+            {guideOpen ? <RenderingGuide onNavigateSource={(target) => {
+              const origin = returnPage ?? page;
+              changePage(target); setReturnPage(origin); setSourceRequest((current) => current + 1);
+            }} /> : hasLesson ? <LessonPanel
               chapterSlug="chapter-05"
               sectionSlug={sectionSlug}
               selectedBlockId={selectedBlockId}
               onNavigateSource={navigateSource}
             /> : <p role="status">本页暂无已发布精讲，可继续阅读原书或选择已有课程。</p>}
-            {chapter?.id === "5" ? <QuestionPanel onNavigateSource={navigateSource} /> : <p>本区域暂未接入来源检索。</p>}
+            {chapter?.id === "5" && !guideOpen ? <details><summary>查找相关内容（目前仅第五章）</summary><QuestionPanel onNavigateSource={navigateSource} /></details> : null}
           </div>
         </section>
       } />

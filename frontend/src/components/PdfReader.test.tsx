@@ -290,7 +290,7 @@ describe("PdfReader", () => {
   it("waits while hidden and renders after becoming visible without reopening the document", async () => {
     let width = 0;
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => width);
-    let notify = () => undefined;
+    let notify: () => void = () => undefined;
     vi.stubGlobal("ResizeObserver", class {
       constructor(callback: ResizeObserverCallback) { notify = () => callback([], this as unknown as ResizeObserver); }
       observe() {} disconnect() {}
