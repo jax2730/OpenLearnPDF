@@ -1,5 +1,16 @@
 # RTR4 local development
 
+## 2026-10-09 companion entry
+
+Existing dependencies are sufficient; do not rerun model downloads or `npm install`
+when the existing environment is usable. Current UI: `http://127.0.0.1:15173/`.
+Start the web command with `npm run dev -- --host 127.0.0.1 --port 15173 --strictPort`.
+Select **伴读** on narrow screens, then **渲染流程入门**. Source buttons jump to exact
+PDF pages; the return button restores the previous page and normalized position.
+Wide screens allow collapse and adjustable split (arrows: 2%, Home: default).
+Published courses come from `/api/books/rtr4-cn/courses`, not a hardcoded chapter menu.
+The guide is a cross-chapter supplement, not full-book published teaching coverage.
+
 This runbook uses the existing I-drive MinerU probe. It does not download models,
 rerun MinerU, or install a local shader application. Shader examples run in the
 browser or can be pasted into ShaderToy.
