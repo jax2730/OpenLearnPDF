@@ -304,4 +304,12 @@ describe("PdfReader", () => {
     await waitFor(() => expect(draw).toHaveBeenCalledOnce());
     expect(getDocument).toHaveBeenCalledTimes(1);
   });
+
+  it("restores a return anchor after the target page is rendered", async () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(3000);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+    const view = render(<section className="source-pane"><PdfReader bookId="rtr4-cn" page={105} restorePosition={0.5} onSelectBlock={() => undefined} /></section>);
+    await waitFor(() => expect(view.container.querySelector<HTMLElement>(".source-pane")!.scrollTop).toBeGreaterThan(400));
+    expect(getDocument).toHaveBeenCalledTimes(1);
+  });
 });

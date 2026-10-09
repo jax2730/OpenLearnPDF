@@ -15,6 +15,7 @@ interface PdfReaderProps {
   chapter?: number;
   page: number;
   selectedBlockId?: string;
+  restorePosition?: number;
   onSelectBlock: (blockId: string) => void;
 }
 
@@ -22,6 +23,7 @@ export function PdfReader({
   bookId,
   page,
   selectedBlockId,
+  restorePosition,
   onSelectBlock,
 }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -77,7 +79,7 @@ export function PdfReader({
     let resizeObserver: ResizeObserver | undefined;
     let activeRenderTask: RenderTask | undefined;
     const pane = frameRef.current?.closest<HTMLElement>(".source-pane");
-    let anchor = -1;
+    let anchor = restorePosition ?? -1;
     let interaction = 0;
     let renderedHeight = 0;
     let renderedTop = 0;
@@ -165,7 +167,7 @@ export function PdfReader({
       pane?.removeEventListener("scroll", remember);
       for (const event of ["wheel", "touchstart", "pointerdown", "keydown"]) pane?.removeEventListener(event, userInput);
     };
-  }, [pdfDocument, page]);
+  }, [pdfDocument, page, restorePosition]);
 
   return (
     <section aria-label={`PDF 第 ${page} 页`}>

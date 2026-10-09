@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getBook, getCourses } from "./api";
 import type { BookManifest } from "./types";
 import { courseForPage, type CourseEntry } from "./courseCatalog";
@@ -23,6 +23,16 @@ export default function App() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [sourceRequest, setSourceRequest] = useState(0);
   const [returnPage, setReturnPage] = useState<number>();
+  const returnAnchor = useRef(-1);
+  const [restorePosition, setRestorePosition] = useState<number>();
+  const captureReturn = () => {
+    if (returnPage !== undefined) return;
+    const pane = document.querySelector<HTMLElement>(".source-pane");
+    const canvas = pane?.querySelector("canvas");
+    if (!pane || !canvas || canvas.clientHeight <= 0) { returnAnchor.current = -1; return; }
+    const top = canvas.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop;
+    returnAnchor.current = pane.scrollTop === 0 ? -1 : Math.max(0, Math.min(1, (pane.scrollTop + (pane.querySelector<HTMLElement>(".source-toolbar")?.offsetHeight ?? 0) - top) / canvas.clientHeight));
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -46,6 +56,7 @@ export default function App() {
   const hasLesson = !!activeCourse && (returnPage !== undefined || activeCourse.source_pages.includes(page));
 
   const changePage = (next: number) => {
+    setRestorePosition(undefined);
     setReturnPage(undefined);
     setPage(next);
     setPageDraft(String(next));
@@ -62,6 +73,7 @@ export default function App() {
   };
 
   const navigateSource = (sourcePage: number, blockId: string) => {
+    captureReturn();
     changePage(sourcePage);
     setReturnPage(returnPage ?? page);
     setSourceRequest((current) => current + 1);
@@ -106,10 +118,11 @@ export default function App() {
             </form>
           </header>
           {pageError ? <p role="alert" className="reader-notice">{pageError}</p> : null}
-          {returnPage !== undefined ? <button type="button" className="return-source" onClick={() => changePage(returnPage)}>返回引用前 · PDF {returnPage}（窄屏可切回伴读）</button> : null}
+          {returnPage !== undefined ? <button type="button" className="return-source" onClick={() => { changePage(returnPage); setRestorePosition(returnAnchor.current); }}>返回引用前 · PDF {returnPage}（窄屏可切回伴读）</button> : null}
           <PdfReader
             bookId="rtr4-cn"
             page={page}
+            restorePosition={restorePosition}
             selectedBlockId={selectedBlockId}
             onSelectBlock={setSelectedBlockId}
           />
@@ -128,6 +141,7 @@ export default function App() {
             <p className="study-guide">全书可阅读不代表全书已完成精讲。当前发布 {courses.length} 个课程及跨章入门伴读。</p>
             {courseError ? <p role="alert">{courseError}<button onClick={() => setReload((value) => value + 1)}>重新加载课程目录</button></p> : null}
             {guideOpen ? <RenderingGuide onNavigateSource={(target) => {
+              captureReturn();
               const origin = returnPage ?? page;
               changePage(target); setReturnPage(origin); setSourceRequest((current) => current + 1);
             }} /> : hasLesson ? <LessonPanel
