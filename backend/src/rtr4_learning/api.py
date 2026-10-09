@@ -157,6 +157,37 @@ def create_app(settings: Settings) -> FastAPI:
     def get_book(book_id: str) -> dict[str, object]:
         return _public_manifest(_manifest(settings, book_id))
 
+    @app.get("/api/books/{book_id}/courses")
+    def get_courses(book_id: str) -> dict[str, object]:
+        manifest = _manifest(settings, book_id)
+        root = settings.content_root / book_id
+        courses = []
+        try:
+            if _is_link_or_reparse_point(root):
+                raise ValueError("indirect content root")
+            for path in sorted(root.glob("chapter-*/section-*.json")):
+                if any(_is_link_or_reparse_point(part) for part in (path, path.parent)):
+                    raise ValueError("indirect course path")
+                if not all(_CONTENT_SLUG.fullmatch(slug) for slug in (path.parent.name, path.stem)):
+                    raise ValueError("invalid course slug")
+                lesson, shader = load_lesson_bundle(path)
+                load_shader_sources(path, shader)
+                citations = {citation for section in lesson.sections for citation in section.citations}
+                citations.update(citation for point in lesson.knowledge_points for citation in point.citations)
+                citations.update(citation for point in lesson.knowledge_points for card in point.cards for citation in card.citations)
+                pages = sorted({int(citation.split("-", 1)[0][1:]) for citation in citations})
+                if not pages or any(not 1 <= page <= manifest.page_count for page in pages):
+                    raise ValueError("course references outside book")
+                courses.append({
+                    "id": lesson.id, "chapter_slug": path.parent.name,
+                    "section_slug": path.stem, "section": lesson.section,
+                    "title": lesson.title, "start_page": pages[0], "source_pages": pages,
+                })
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=500, detail="course catalog is invalid") from error
+        courses.sort(key=lambda course: tuple(int(part) for part in str(course["section"]).split(".")))
+        return {"book_id": book_id, "courses": courses}
+
     @app.get("/api/books/{book_id}/pages/{page_number}")
     def get_book_page(book_id: str, page_number: int) -> dict[str, object]:
         manifest = _manifest(settings, book_id)

@@ -5,6 +5,11 @@ import type {
   QuestionAnswer,
   SourceBlock,
 } from "./types";
+import type { CourseEntry } from "./courseCatalog";
+
+export function getCourses(bookId: string, signal?: AbortSignal) {
+  return readJson<{ book_id: string; courses: CourseEntry[] }>(`/api/books/${encodeURIComponent(bookId)}/courses`, signal);
+}
 
 export function getBook(bookId: string, signal?: AbortSignal) {
   return readJson<BookManifest>(`/api/books/${encodeURIComponent(bookId)}`, signal);

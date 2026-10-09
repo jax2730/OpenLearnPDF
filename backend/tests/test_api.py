@@ -83,6 +83,20 @@ def test_health_book_page_and_block_endpoints(tmp_path) -> None:
     assert block.json()["latex"].startswith("c_{shaded}")
 
 
+def test_course_catalog_is_book_scoped_and_derived_from_content(tmp_path) -> None:
+    client = _client(tmp_path)
+    response = client.get("/api/books/rtr4-cn/courses")
+    assert response.status_code == 200
+    courses = response.json()["courses"]
+    assert [course["section"] for course in courses] == ["5.1", "5.2", "5.2.2"]
+    assert courses[0]["chapter_slug"] == "chapter-05"
+    assert courses[0]["section_slug"] == "section-5.1"
+    assert 105 in courses[0]["source_pages"]
+    assert courses[0]["start_page"] == min(courses[0]["source_pages"])
+    assert all(1 <= number <= 1250 for course in courses for number in course["source_pages"])
+    assert client.get("/api/books/missing/courses").status_code == 404
+
+
 def test_whole_book_pages_distinguish_unparsed_from_invalid(tmp_path) -> None:
     client = _client(tmp_path)
     parsed = client.get("/api/books/rtr4-cn/pages/105")

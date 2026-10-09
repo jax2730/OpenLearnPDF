@@ -6,11 +6,17 @@ import App from "./App";
 vi.mock("./api", () => ({ getBook: vi.fn().mockResolvedValue({
   id: "rtr4-cn", title: "RTR4", page_count: 903,
   chapters: [{ id: "5", title: "第五章", start_page: 104, end_page: 154 }],
-}) }));
+}), getCourses: vi.fn().mockResolvedValue({ courses: [
+  { id: "a", chapter_slug: "chapter-05", section_slug: "section-5.1", section: "5.1", title: "着色模型", start_page: 105, source_pages: [105,106] },
+  { id: "b", chapter_slug: "chapter-05", section_slug: "section-5.2", section: "5.2", title: "光源", start_page: 106, source_pages: [106,107,108] },
+  { id: "c", chapter_slug: "chapter-05", section_slug: "section-5.2.2", section: "5.2.2", title: "精确光源", start_page: 109, source_pages: [109,110,111,112,113,114] },
+] }) }));
 
 async function openApp() {
   render(<App />);
   await screen.findByLabelText("PDF 页码");
+  fireEvent.click(screen.getByText("已发布课程目录"));
+  await screen.findByRole("button", { name: "5.1 着色模型" });
 }
 
 vi.mock("./components/PdfReader", () => ({
@@ -149,7 +155,7 @@ describe("App", () => {
       "workspace-pane",
       "study-pane",
     );
-    expect(screen.getByRole("navigation", { name: "第五章课程" })).toHaveClass(
+    expect(screen.getByRole("navigation", { name: "已发布课程" })).toHaveClass(
       "course-selector",
     );
   });

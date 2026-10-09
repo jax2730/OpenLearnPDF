@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { getBook } from "./api";
 
-vi.mock("./api", () => ({ getBook: vi.fn() }));
+vi.mock("./api", () => ({ getBook: vi.fn(), getCourses: vi.fn().mockResolvedValue({ courses: [] }) }));
 vi.mock("./components/PdfReader", () => ({ PdfReader: ({ page }: { page: number }) => <div aria-label="PDF 阅读器">{page}</div> }));
 vi.mock("./components/QuestionPanel", () => ({ QuestionPanel: () => <div>来源检索</div> }));
 vi.mock("./components/LessonPanel", () => ({ LessonPanel: () => <div>当前课程</div> }));

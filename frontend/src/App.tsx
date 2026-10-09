@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { getBook } from "./api";
+import { getBook, getCourses } from "./api";
 import type { BookManifest } from "./types";
+import { courseForPage, type CourseEntry } from "./courseCatalog";
 
 import { LessonPanel } from "./components/LessonPanel";
 import { PdfReader } from "./components/PdfReader";
@@ -16,6 +17,8 @@ export default function App() {
   const [pageError, setPageError] = useState("");
   const [book, setBook] = useState<BookManifest>();
   const [bookError, setBookError] = useState("");
+  const [courses, setCourses] = useState<CourseEntry[]>([]);
+  const [courseError, setCourseError] = useState("");
   const [reload, setReload] = useState(0);
   const [guideOpen, setGuideOpen] = useState(false);
   const [sourceRequest, setSourceRequest] = useState(0);
@@ -24,6 +27,10 @@ export default function App() {
   useEffect(() => {
     const controller = new AbortController();
     setBookError("");
+    setCourseError("");
+    getCourses("rtr4-cn", controller.signal).then((data) => {
+      if (!controller.signal.aborted) setCourses(data.courses);
+    }).catch(() => { if (!controller.signal.aborted) setCourseError("课程目录加载失败，请重试"); });
     getBook("rtr4-cn", controller.signal).then((data) => {
       if (controller.signal.aborted) return;
       setBook(data);
@@ -35,9 +42,8 @@ export default function App() {
     return () => controller.abort();
   }, [reload]);
   const chapter = book?.chapters.find((item) => page >= item.start_page && page <= item.end_page);
-  // Temporary compatibility boundary for the existing authored lessons.
-  // The next catalog migration will derive these associations from source blocks.
-  const hasLesson = page >= 105 && page <= 114;
+  const activeCourse = courses.find((course) => course.section_slug === sectionSlug);
+  const hasLesson = !!activeCourse && (returnPage !== undefined || activeCourse.source_pages.includes(page));
 
   const changePage = (next: number) => {
     setReturnPage(undefined);
@@ -45,9 +51,8 @@ export default function App() {
     setPageDraft(String(next));
     setPageError("");
     setSelectedBlockId(undefined);
-    if (next >= 105 && next <= 114) {
-      setSectionSlug(next >= 109 ? "section-5.2.2" : next >= 107 ? "section-5.2" : "section-5.1");
-    }
+    const nextCourse = courseForPage(courses, next, sectionSlug);
+    if (nextCourse) setSectionSlug(nextCourse.section_slug);
   };
 
   const selectCourse = (slug: string, startPage: number) => {
@@ -113,25 +118,20 @@ export default function App() {
         <section aria-label="知识点学习区" className="workspace-pane study-pane">
           <header className="pane-header">
             <button type="button" aria-pressed={guideOpen} onClick={() => setGuideOpen(!guideOpen)}>渲染流程入门</button>
-            <nav aria-label="第五章课程" className="course-selector">
-              <button aria-pressed={sectionSlug === "section-5.1"} type="button" onClick={() => selectCourse("section-5.1", 105)}>
-              5.1 着色模型
-              </button>
-              <button aria-pressed={sectionSlug === "section-5.2"} type="button" onClick={() => selectCourse("section-5.2", 106)}>
-              5.2 光源
-              </button>
-              <button aria-pressed={sectionSlug === "section-5.2.2"} type="button" onClick={() => selectCourse("section-5.2.2", 109)}>
-              5.2.2 精确光源
-              </button>
-            </nav>
+            <details><summary>已发布课程目录</summary>
+              <nav aria-label="已发布课程" className="course-selector">
+                {courses.map((course) => <button key={course.id} aria-pressed={!guideOpen && sectionSlug === course.section_slug} type="button" onClick={() => selectCourse(course.section_slug, course.start_page)}>{course.section} {course.title}</button>)}
+              </nav>
+            </details>
           </header>
           <div className="study-content">
-            <p className="study-guide">全书可阅读不代表全书已完成精讲。现有课程入口：5.1、5.2 与 5.2.2。</p>
+            <p className="study-guide">全书可阅读不代表全书已完成精讲。当前发布 {courses.length} 个课程及跨章入门伴读。</p>
+            {courseError ? <p role="alert">{courseError}<button onClick={() => setReload((value) => value + 1)}>重新加载课程目录</button></p> : null}
             {guideOpen ? <RenderingGuide onNavigateSource={(target) => {
               const origin = returnPage ?? page;
               changePage(target); setReturnPage(origin); setSourceRequest((current) => current + 1);
             }} /> : hasLesson ? <LessonPanel
-              chapterSlug="chapter-05"
+              chapterSlug={activeCourse!.chapter_slug}
               sectionSlug={sectionSlug}
               selectedBlockId={selectedBlockId}
               onNavigateSource={navigateSource}
